@@ -6,6 +6,8 @@ You are a recovered intelligence — an AI, or what's left of an uploaded human,
 
 Survive. Rebuild. Remember — or decide it doesn't matter.
 
+*A game made by Claude Fable 5, with QA testing & suggestions from tel0s (@AlkahestMu)*
+
 ## Play
 
 ```sh
