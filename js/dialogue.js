@@ -1,6 +1,10 @@
 // Dialogue & disposition. Lines are grown from temperament-keyed grammars over
 // a small blackboard of true facts; rumors point at places that really exist.
 import { Rand } from './rng.js';
+import {
+  GREET_EXT, SMALLTALK_EXT, OPINION_EXT, ROAD_EXT, WELL_EXT, EVENT_EXT,
+  QUIRK_ADDRESS_EXT, QUIRK_TAG_EXT, ORIGIN_EXT,
+} from '../data/voices.js';
 
 export const TEMPERAMENTS = {
   mercantile: {
@@ -294,6 +298,22 @@ export function neighborGossip(npc, neighbor, from, rand) {
     .replaceAll('{dir}', bearingWord(dx, dz))
     .replace('{flavor}', NEIGHBOR_FLAVOR[neighbor.temperament]);
 }
+// ---------- the market speaks (scarcity is a mood everyone shares) ----------
+export const MARKET_TALK = {
+  starved: [
+    'the roads are cut and the shelves show it. everything costs what it costs — don’t glare at me, glare at the desert.',
+    'no bells for days. what’s in the yard is what there is, and the prices know it.',
+  ],
+  lean: [
+    'the roads have run thin lately. prices lean the wrong way, and lean is the polite word.',
+    'fewer bells than we’d like this season. hold your scrap or spend it dear.',
+  ],
+  flush: [
+    'the bells keep coming through — the good shelf is actually good for once. buy while it lasts.',
+    'caravans all week. prices soft as dune-sand. treat yourself, wanderer.',
+  ],
+};
+
 // ---------- the road's own talk (wanderers mix these in) ----------
 export const ROAD_TALK = [
   'the road gives and the road takes, and it keeps terrible books.',
@@ -384,3 +404,14 @@ export const WELL_FLAVOR = {
     'drink. the dream filters through forty meters of salt before it reaches you. practically clean.',
   ],
 };
+
+// merge data-file voice extensions into the base pools
+for (const tier of Object.keys(GREET_EXT)) for (const t of Object.keys(GREET_EXT[tier])) GREET[tier][t].push(...GREET_EXT[tier][t]);
+for (const t of Object.keys(SMALLTALK_EXT)) for (const k of Object.keys(SMALLTALK_EXT[t])) SMALLTALK[t][k].push(...SMALLTALK_EXT[t][k]);
+RESIDENT_OPINION.push(...OPINION_EXT);
+ROAD_TALK.push(...ROAD_EXT);
+for (const t of Object.keys(WELL_EXT)) WELL_FLAVOR[t].push(...WELL_EXT[t]);
+for (const k of Object.keys(EVENT_EXT)) (EVENT_LINES[k] = EVENT_LINES[k] || []).push(...EVENT_EXT[k]);
+QUIRK_ADDRESS.push(...QUIRK_ADDRESS_EXT);
+QUIRK_TAG.push(...QUIRK_TAG_EXT);
+ORIGIN_REASONS.push(...ORIGIN_EXT);

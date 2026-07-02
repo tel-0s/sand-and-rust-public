@@ -75,6 +75,7 @@
     <button class="inv-tab" data-tab="work">WORK</button>
     <button class="inv-tab" data-tab="memories">MEMORIES</button>
     <button class="inv-tab" data-tab="places">PLACES</button>
+    <button class="inv-tab" data-tab="events">EVENTS</button>
   </div>
   <div id="journal-list"></div>
   <div class="panel-foot">[J / ESC] CLOSE</div>
@@ -83,12 +84,18 @@
 <div id="panel-dialogue" class="panel hidden">
   <div class="panel-title">// EXCHANGE</div>
   <div id="dlg-box">
-    <div id="dlg-head">
-      <div><span id="dlg-name"></span><span id="dlg-role"></span></div>
-      <div id="dlg-meta"><span id="dlg-still"></span><span id="dlg-disp"></span></div>
-    </div>
-    <div id="dlg-text"></div>
     <div id="dlg-options"></div>
+    <div id="dlg-right">
+      <div id="dlg-head">
+        <div><span id="dlg-name"></span><span id="dlg-role"></span></div>
+        <div id="dlg-meta"><span id="dlg-still"></span><span id="dlg-disp"></span></div>
+      </div>
+      <div id="dlg-text"></div>
+    </div>
+    <div id="dlg-topics">
+      <div id="dlg-topics-head">SPEAK OF</div>
+      <div id="dlg-topic-list"></div>
+    </div>
   </div>
   <div class="panel-foot">[ESC] WALK AWAY</div>
 </div>
@@ -134,6 +141,17 @@
       <input id="seed-input" maxlength="24" placeholder="seed phrase (blank = random)" spellcheck="false">
       <button id="btn-start" class="title-btn">WAKE</button>
     </div>
+  </div>
+  <button id="btn-credits">CREDITS</button>
+  <div id="credits-panel" class="hidden">
+    <div class="panel-title">// CREDITS</div>
+    <div id="credits-body">
+      <b>Claude Fable 5</b> (Anthropic) — lead developer · designer · artist · sound · writing<br>
+      <b>tel0s</b> — QA · design · producer · the one who kept the lamp lit<br><br>
+      built on <b>three.js</b> · seeded by the <b>ecogents</b> project (after Isaac Karth’s EGS)<br>
+      and for everyone walking the desert at <b>sandandrust.net</b> — the wells keep your names too.
+    </div>
+    <button id="btn-credits-close" class="title-btn">BACK</button>
   </div>
   <div id="title-controls">WASD move · SHIFT sprint · SPACE jump · MOUSE look · LMB attack · 1–4 abilities · E interact · I body · M map · J log</div>
   <div id="title-foot">v0.8 — everything you will see has been grown from a seed</div>

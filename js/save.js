@@ -37,10 +37,13 @@ export function saveGame(g) {
       uid: getUidCounter(),
       dayT: g.dayT,
       worldT: g.worldT,
-      player: {
-        x: g.player.pos.x, y: g.player.pos.y, z: g.player.pos.z,
-        hull: g.player.hull, energy: g.player.energy, corruption: g.player.corruption,
-      },
+      // inside a hollow place, save the spot outside the door — the halls are
+      // regrown on entry, not persisted
+      player: (() => {
+        const inside = g.interiors && g.interiors.active;
+        const pp = inside ? g.interiors.active.outsidePos : g.player.pos;
+        return { x: pp.x, y: pp.y, z: pp.z, hull: g.player.hull, energy: g.player.energy, corruption: g.player.corruption };
+      })(),
       anchor: g.anchor,
       equipped: g.equipped,
       inventory: g.inventory,
@@ -58,11 +61,18 @@ export function saveGame(g) {
       directoryUsed: g.directoryUsed,
       recruitedIds: g.recruitedIds,
       background: g.background,
-      trackedChainId: g.trackedChainId,
+      v: 2, // save-format epoch: future migrations branch on this
+      tracked: g.tracked,
+      topics: g.topics,
+      epic: g.epic,
+      nameOverrides: g.nameOverrides,
+      routesCut: g.routesCut,
       deadNpcIds: g.deadNpcIds,
       destroyedNests: g.destroyedNests,
       histories: g.histories,
       memorials: g.memorials,
+      fundedTurrets: g.fundedTurrets,
+      revived: g.revived,
       follower: g.followers ? g.followers.serialize() : null,
       looted: [...g.world.looted],
       discovered: g.world.discovered,

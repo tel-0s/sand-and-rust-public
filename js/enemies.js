@@ -31,6 +31,12 @@ const KIND_DEFS = {
     scale: 2.4, color: 0x6a2a10, melee: true, stationary: true,
     drops: { scrap: [4, 8], nodule: 1, alloy: 0.9, cell: 0.8, partChance: 0.85, rustBias: 0.9 },
   },
+  conceptory: { // she made minds, once. she still makes things. she does not
+    // leave: wired into the works, she leans, and her arms reach far.
+    hp: 680, speed: 0, dmg: 30, attackRange: 7.5, attackCd: 1.7, aggro: 26,
+    scale: 4.4, color: 0x7a4a30, melee: true, corrupting: 6, rooted: true,
+    drops: { scrap: [8, 12], nodule: 1, alloy: 1, cell: 1, partChance: 1, rustBias: 0.6 },
+  },
 };
 
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff5a2a });
@@ -45,7 +51,21 @@ const LOADOUT_SLOTS = {
   sentinel: ['PLATING', 'CORE', 'ARMS'],
   rustform: ['ARMS', 'CORE'],
   fabcore: [],
+  conceptory: ['PLATING', 'CORE', 'ARMS'],
 };
+
+// friendly folk draw from the same pool: 1-2 parts, quality by tier
+export function rollFolkLoadout(rand, tier) {
+  const out = [];
+  const slots = rand.chance(0.6) ? ['PLATING'] : ['PLATING', 'ARMS'];
+  for (const slot of slots) {
+    const pool = PART_DEFS.filter(d => d.slot === slot);
+    const def = pool[rand.int(0, pool.length - 1)];
+    const t = rand.chance((tier - 1) * 0.5) ? 2 : 1;
+    out.push(makePart(def.id, t, false, rand.int(0, 0xffffffff)));
+  }
+  return out;
+}
 
 function generateLoadout(kind, tierMult, infected) {
   const slots = LOADOUT_SLOTS[kind] || [];
@@ -62,7 +82,7 @@ function generateLoadout(kind, tierMult, infected) {
 }
 
 // visible salvage bolted to the frame: you can see what it's wearing
-function attachGreebles(mesh, loadout, s) {
+export function attachGreebles(mesh, loadout, s) {
   for (const p of loadout) {
     const mat = new THREE.MeshLambertMaterial({ color: p.rusted ? 0x9c4422 : 0x6e675c });
     if (p.slot === 'PLATING') {
@@ -219,14 +239,16 @@ export class Enemy {
     if (this.state === 'wander') {
       this.headingT -= dt;
       if (this.headingT <= 0) { this.heading += (Math.random() - 0.5) * 2; this.headingT = 2 + Math.random() * 3; }
-      this.move(Math.sin(this.heading), Math.cos(this.heading), this.speed * (this.repelledT > 0 ? 0.95 : 0.3), dt, world);
-      if (toPlayer < this.aggroR * (this.aggroMul ?? 1) && this.repelledT <= 0) this.state = 'chase';
+      if (!this.def.rooted) this.move(Math.sin(this.heading), Math.cos(this.heading), this.speed * (this.repelledT > 0 ? 0.95 : 0.3), dt, world);
+      // lurkers in the halls need to SEE you — no aggro through walls
+      if (toPlayer < this.aggroR * (this.aggroMul ?? 1) && this.repelledT <= 0
+        && (!this.losAggro || this.seesTarget(target, world))) this.state = 'chase';
     } else if (this.state === 'chase') {
       const dx = target.pos.x - this.pos.x, dz = target.pos.z - this.pos.z;
       const d = Math.hypot(dx, dz) || 1;
-      this.heading = Math.atan2(dx, dz);
+      this.heading = Math.atan2(dx, dz); // even the rooted ones lean toward you
       const range = this.def.melee ? this.def.attackRange : this.def.attackRange * 0.8;
-      if (toPlayer > range) this.move(dx / d, dz / d, this.speed, dt, world);
+      if (toPlayer > range && !this.def.rooted) this.move(dx / d, dz / d, this.speed, dt, world);
       if (toPlayer < (this.def.melee ? this.def.attackRange : this.def.attackRange) && this.attackT <= 0) {
         this.attackT = this.def.attackCd;
         const shove = (power) => {
@@ -271,9 +293,27 @@ export class Enemy {
     this.mesh.rotation.y = this.heading;
     // animation flourishes
     if (this.mesh.userData.blades) this.mesh.userData.blades.rotation.y += dt * (this.state === 'chase' ? 18 : 4);
-    this.mesh.position.y += Math.abs(Math.sin(this.animT * 8)) * 0.06 * this.def.scale;
+    // rooted machines settle instead of hopping: a slow, heavy sway
+    this.mesh.position.y += this.def.rooted
+      ? Math.sin(this.animT * 1.3) * 0.05 * this.def.scale
+      : Math.abs(Math.sin(this.animT * 8)) * 0.06 * this.def.scale;
     // hit flash: a brief pale blaze, unmissable
     this.mesh.traverse(o => { if (o.material && o.material.emissive) o.material.emissive.setHex(this.flashT > 0 ? 0x9a9484 : 0x000000); });
+  }
+
+  // can this machine actually see its target, or is there a wall in the way?
+  // samples every ~0.6 m so thin walls can't slip between steps
+  seesTarget(target, world) {
+    const y0 = this.pos.y + 1.2, y1 = target.pos.y + 1.2;
+    const dist = Math.hypot(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+    const n = Math.min(40, Math.max(4, Math.ceil(dist / 0.6)));
+    for (let i = 1; i < n; i++) {
+      const s = i / n;
+      const x = this.pos.x + (target.pos.x - this.pos.x) * s;
+      const z = this.pos.z + (target.pos.z - this.pos.z) * s;
+      if (world.projectileBlocked(x, y0 + (y1 - y0) * s, z)) return false;
+    }
+    return true;
   }
 
   move(dx, dz, speed, dt, world) {
@@ -312,7 +352,8 @@ export class EnemyManager {
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
       this.spawnT = 2.6;
-      if (this.enemies.length < this.cap) this.trySpawn(player, isNight);
+      // the hollow places stock themselves once, at the door (interiors.js)
+      if (this.enemies.length < this.cap && !this.suppressSpawn) this.trySpawn(player, isNight);
     }
     const targets = [player, ...allies.filter(a => a.hp > 0)];
     for (let i = this.enemies.length - 1; i >= 0; i--) {

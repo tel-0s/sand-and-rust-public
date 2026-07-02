@@ -43,6 +43,7 @@ class BloomEvent {
       this.done = true;
       g.scene.remove(this.dome); this.dome.geometry.dispose();
       g.ui.toast('the bloom recedes into the sand', 'good');
+      g.journal.push({ type: 'lore', cat: 'event', title: 'RUST BLOOM', body: `the red sand rose near ${g.world.regionName(this.x, this.z)} and receded. day ${1 + Math.floor(g.worldT)}.` });
     }
   }
 }
@@ -66,12 +67,41 @@ class RaidEvent {
   spawnWave() {
     const g = this.game, s = this.still;
     const n = this.wave === 0 ? 4 : 3;
+    // raiders come sized for the settlement, not for you: a frontier still
+    // faces frontier machines, but the walls stay defensible
+    const stillTier = 1 + Math.min(1.2, Math.hypot(s.x, s.z) / 2600);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = 60 + Math.random() * 25;
       const kind = Math.random() < 0.5 ? 'scrabbler' : (Math.random() < 0.65 ? 'dervish' : 'rustform');
       const e = g.enemies.spawnAt(kind, s.x + Math.sin(a) * r, s.z + Math.cos(a) * r,
-        { infected: Math.random() < 0.6, raider: true, aggro: true });
+        { infected: Math.random() < 0.6, raider: true, aggro: true, tierMult: stillTier });
       this.raiders.push(e);
+    }
+  }
+
+  // every raid resolves conclusively — victory, mourning, or a scatter
+  finish(scattered) {
+    const g = this.game;
+    this.done = true;
+    const prefix = scattered ? 'the raiders lose conviction and scatter — ' : '';
+    g.journal.push({
+      type: 'lore', cat: 'event',
+      title: `RAID — ${this.still.name.toUpperCase()}`,
+      body: this.deaths === 0
+        ? `${scattered ? 'the raiders scattered; ' : ''}the wall held and no souls were lost. day ${1 + Math.floor(g.worldT)}.`
+        : `${scattered ? 'the raiders scattered, but ' : ''}${this.deaths} soul${this.deaths === 1 ? '' : 's'} fell before it ended. day ${1 + Math.floor(g.worldT)}.`,
+    });
+    if (this.deaths === 0) {
+      g.changeRep(this.still, 8);
+      g.recordEvent('raidwin', this.still.name);
+      g.appendHistory(this.still.key, `the raid of day ${1 + Math.floor(g.worldT)} broke against the wall. no souls lost. a wanderer stood with the watch.`);
+      g.audio.play('chime');
+      g.ui.toast(`${prefix.toUpperCase()}THE WALL HELD, NOTHING LOST — ${this.still.name.toUpperCase()} remembers this`, 'good');
+    } else {
+      g.changeRep(this.still, 3);
+      g.recordEvent('raidloss', this.still.name);
+      g.appendHistory(this.still.key, `the raid of day ${1 + Math.floor(g.worldT)} took ${this.deaths} soul${this.deaths === 1 ? '' : 's'}. the well keeps their designations.`);
+      g.ui.toast(`${prefix}the raid is over, but ${this.still.name.toUpperCase()} buries ${this.deaths} of its own`, 'rust');
     }
   }
 
@@ -83,37 +113,22 @@ class RaidEvent {
       if (Math.floor(this.t) % 3 !== 0) this._rang = false;
       if (this.t <= 0) {
         this.phase = 'assault';
-        this.t = 35;
+        this.t = 55;
         this.spawnWave(); this.wave = 1;
         g.ui.toast('RAIDERS AT THE WALL — the watch takes the gate', 'rust');
       }
       return;
     }
     // assault
-    if (this.wave === 1 && this.t < 18) { this.spawnWave(); this.wave = 2; }
+    if (this.wave === 1 && this.t < 38) { this.spawnWave(); this.wave = 2; }
     this.raiders = this.raiders.filter(e => g.enemies.enemies.includes(e));
     if (this.raiders.length === 0 && this.wave >= 2) {
-      this.done = true;
-      const rec = g.stills.loaded.get(this.still.key);
-      const survivors = rec ? rec.npcs.length : 0;
-      if (this.deaths === 0) {
-        g.changeRep(this.still, 8);
-        g.recordEvent('raidwin', this.still.name);
-        g.appendHistory(this.still.key, `the raid of day ${1 + Math.floor(g.worldT)} broke against the wall. no souls lost. a wanderer stood with the watch.`);
-        g.audio.play('chime');
-        g.ui.toast(`THE WALL HELD, NOTHING LOST — ${this.still.name.toUpperCase()} remembers this`, 'good');
-      } else {
-        g.changeRep(this.still, 3);
-        g.recordEvent('raidloss', this.still.name);
-        g.appendHistory(this.still.key, `the raid of day ${1 + Math.floor(g.worldT)} took ${this.deaths} soul${this.deaths === 1 ? '' : 's'}. the well keeps their designations.`);
-        g.ui.toast(`the raid is broken, but ${this.still.name.toUpperCase()} buries ${this.deaths} of its own`, 'rust');
-      }
-      void survivors;
-    }
-    if (this.t <= 0 && this.raiders.length > 0) {
-      // raiders that outlast the assault clock lose conviction and scatter
+      this.finish(false);
+    } else if (this.t <= 0) {
+      // raiders that outlast the assault clock lose conviction and scatter —
+      // but the raid still resolves, with everything that entails
       for (const e of this.raiders) { e.raider = false; e.state = 'wander'; }
-      this.done = true;
+      this.finish(true);
     }
   }
 }

@@ -30,7 +30,12 @@ export class Projectiles {
       p.life -= dt;
       p.mesh.position.addScaledVector(p.vel, dt);
       const pos = p.mesh.position;
-      let dead = p.life <= 0 || pos.y < world.getHeight(pos.x, pos.z) - 0.2;
+      // "the ground" underground is the hall floor beneath the shot, not the
+      // desert surface 120 m overhead (which killed every projectile at birth)
+      const gy = world.groundOverride !== null
+        ? world.groundAt(pos.x, pos.z, pos.y)
+        : world.getHeight(pos.x, pos.z);
+      let dead = p.life <= 0 || pos.y < gy - 0.2;
       // structures stop shots — cover is real, for both sides
       if (!dead && world.projectileBlocked(pos.x, pos.y, pos.z)) {
         dead = true;

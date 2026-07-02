@@ -9,6 +9,7 @@ import { GeoBuilder } from './structures.js';
 import { makeCircle, makeBox } from './collision.js';
 import { QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 import { buildResidentMesh } from './stills.js';
+import { rollFolkLoadout, attachGreebles } from './enemies.js';
 
 const CAMP_CELL = 1300;
 const MENDER_ROLES = ['tinker-errant', 'road-mender', 'pilgrim', 'well-keeper', 'sweeper', 'abbot', 'tinker'];
@@ -36,10 +37,18 @@ export class Wanderer {
     this.opinionOf = null;
     // dialogue stack expects a "still": the camp stands in
     this.still = camp.pseudoStill;
-    this.maxHp = 65; this.hp = 65;
-    this.dmg = 9 + Math.min(10, Math.hypot(camp.x, camp.z) / 600);
+    const wTier = 1 + Math.min(1.5, Math.hypot(camp.x, camp.z) / 2000);
+    this.maxHp = Math.round(75 * wTier); this.hp = this.maxHp;
+    this.dmg = 9 * wTier;
+    this.loadout = rollFolkLoadout(rng, wTier);
+    for (const p of this.loadout) {
+      this.maxHp += Math.round((p.stats.hull || 0) * 0.5 + (p.stats.armor || 0));
+      if (p.slot === 'ARMS') this.dmg += (p.stats.damage || 0) * 0.3;
+    }
+    this.hp = this.maxHp;
     this.atkT = 0; this.flashT = 0;
     this.mesh = buildResidentMesh(this.temperament, true);
+    attachGreebles(this.mesh, this.loadout, 0.8);
     scene.add(this.mesh);
     const a = rng.range(0, Math.PI * 2);
     this.pos = new THREE.Vector3(camp.x + Math.sin(a) * 3.5, 0, camp.z + Math.cos(a) * 3.5);
@@ -215,7 +224,7 @@ export class CampManager {
     this.scene.add(ember);
     this.world.staticColliders.push(...colliders);
 
-    const neighbors = this.stills.stillsNear(cx, cz, 6500);
+    const neighbors = this.stills.stillsNear(cx, cz, 9500);
     const wanderers = [];
     for (let i = 0; i < info.residents; i++) {
       const w = new Wanderer(this.scene, this.world, info, i, rng, neighbors);

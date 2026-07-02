@@ -51,6 +51,7 @@ export class World {
     this.discovered = [];         // map markers {name, kind, x, z}
     this.questCaches = [];        // {id, x, z, spawned}
     this.staticColliders = [];    // world-fixed (anchor obelisk, field posts)
+    this.groundOverride = null;   // set while inside a hollow place (interiors.js)
     this.anchorActiveSet = new Set(); // restored waystation anchors (by mega key)
     this.discoveredKeys = new Set();
     this.onDiscover = null;
@@ -406,6 +407,15 @@ export class World {
   // ---------- queries ----------
   collidersNear(x, z) {
     const out = [];
+    // in the hollow places, only the halls exist — the surface (including the
+    // megastructure's own full-height footprint overhead, and surface-only
+    // statics like the stairhead blockhouse) does not reach down
+    if (this.groundOverride !== null) {
+      for (const c of this.staticColliders) {
+        if (!c.surfaceOnly && Math.abs(c.x - x) < 90 && Math.abs(c.z - z) < 90) out.push(c);
+      }
+      return out;
+    }
     const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
     for (let dz = -1; dz <= 1; dz++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -430,11 +440,13 @@ export class World {
     resolve(p, radius, feetY, this.collidersNear(p.x, p.z));
   }
 
-  // terrain height OR the top of whatever standable structure is underfoot
+  // terrain height OR the top of whatever standable structure is underfoot.
+  // inside a hollow place the desert floor is overhead: only structure counts,
+  // with a void floor far below as a safety net.
   groundAt(x, z, feetY = Infinity) {
-    const h = this.getHeight(x, z);
     const sup = supportY(x, z, feetY, this.collidersNear(x, z));
-    return Math.max(h, sup);
+    if (this.groundOverride !== null) return Math.max(sup, this.groundOverride);
+    return Math.max(this.getHeight(x, z), sup);
   }
 
   projectileBlocked(x, y, z) {

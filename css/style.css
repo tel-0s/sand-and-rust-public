@@ -77,7 +77,9 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 #interact-prompt { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 6px 18px;
   border: 1px solid var(--line); background: var(--panel-bg); letter-spacing: 1px; }
 #interact-prompt b { color: var(--amber-bright); }
-#keys-hint { position: absolute; bottom: 22px; right: 22px; font-size: 10px; color: rgba(154,108,40,0.7); letter-spacing: 1px; text-align: right; }
+#keys-hint { position: absolute; bottom: 22px; right: 22px; font-size: 10px; color: var(--amber-dim); letter-spacing: 1px; text-align: right;
+  padding: 6px 12px; border: 1px solid var(--line); background: var(--panel-bg);
+  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px); }
 
 #toast-stack { position: absolute; top: 96px; right: 22px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .toast { font-size: 12px; padding: 6px 14px; border: 1px solid var(--line); background: var(--panel-bg); animation: toast-in .25s ease-out; max-width: 380px; }
@@ -164,8 +166,9 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 .journal-entry .qs-done { opacity: .55; text-decoration: line-through; }
 .journal-entry .qs-cur { color: var(--teal); }
 
-/* ===== Dialogue ===== */
-#dlg-box { width: 100%; max-width: 680px; margin-top: 4vh; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+/* ===== Dialogue (Morrowind split: topics left, words right) ===== */
+#dlg-box { width: 100%; max-width: 1110px; margin-top: 4vh; display: flex; flex-direction: row; gap: 14px; min-height: 0; flex: 1; align-items: stretch; max-height: 62vh; }
+#dlg-right { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 #dlg-head { border: 1px solid var(--line); background: var(--panel-bg); padding: 10px 16px; display: flex; justify-content: space-between; align-items: baseline;
   clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
 #dlg-name { font-size: 15px; color: var(--amber-bright); letter-spacing: 1px; }
@@ -176,9 +179,10 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 #dlg-disp.hostile { color: var(--rust-bright); } #dlg-disp.wary { color: #c98a4a; }
 #dlg-disp.neutral { color: var(--amber-dim); } #dlg-disp.warm { color: var(--amber-bright); } #dlg-disp.kin { color: var(--teal); }
 #dlg-text { border: 1px solid var(--line); border-top: none; background: rgba(13,10,6,0.85); padding: 16px 18px; font-size: 13px; line-height: 1.9;
-  color: var(--amber); height: 26vh; overflow-y: auto; font-style: italic; }
+  color: var(--amber); flex: 1; min-height: 0; overflow-y: auto; font-style: italic; }
 #dlg-text .dlg-sys { color: var(--teal); font-style: normal; font-size: 11px; }
-#dlg-options { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; max-height: 34vh; overflow-y: auto; }
+#dlg-options { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;
+  border: 1px solid rgba(232,163,61,0.2); background: rgba(13,10,6,0.6); padding: 8px; }
 .dlg-opt { font-family: inherit; text-align: left; font-size: 12px; letter-spacing: 1px; padding: 8px 14px; background: var(--panel-bg);
   border: 1px solid var(--line); color: var(--amber); cursor: pointer; }
 .dlg-opt:hover { color: var(--amber-bright); border-color: var(--amber); background: rgba(40,28,12,0.92); }
@@ -186,6 +190,19 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 .dlg-opt.disabled { opacity: .4; cursor: default; }
 .dlg-opt.leave { color: var(--amber-dim); }
 .dlg-trade-head { font-size: 10px; letter-spacing: 2px; color: var(--amber-dim); margin-top: 6px; }
+
+/* topics: glowing words in the text, and the subject rail on the right */
+#dlg-text .tw { color: var(--teal); cursor: pointer; border-bottom: 1px dotted rgba(111,232,208,0.5); }
+#dlg-text .tw:hover { color: #b8fff0; border-bottom-style: solid; }
+#dlg-topics { width: 176px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid rgba(232,163,61,0.2); background: rgba(13,10,6,0.6); padding: 8px; }
+#dlg-topics-head { font-size: 10px; letter-spacing: 2px; color: var(--amber-dim); padding: 2px 4px 8px; }
+#dlg-topic-list { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+.dlg-topic { font-family: inherit; text-align: left; font-size: 11px; letter-spacing: 1px; padding: 5px 10px;
+  background: transparent; border: none; border-left: 2px solid transparent; color: var(--amber); cursor: pointer; }
+.dlg-topic:hover { color: var(--amber-bright); border-left-color: var(--amber); background: rgba(40,28,12,0.92); }
+.dlg-topic.fresh { color: var(--teal); }
+.dlg-topic.fresh::after { content: ' •'; }
 
 /* ===== Settings ===== */
 #set-tabs { margin-bottom: 16px; }
@@ -241,3 +258,12 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 #seed-input { font-family: inherit; font-size: 12px; padding: 10px 14px; background: rgba(13,10,6,0.8); border: 1px solid var(--line); color: var(--amber-bright); width: 280px; outline: none; }
 #title-controls { position: absolute; bottom: 56px; font-size: 11px; color: var(--amber-dim); letter-spacing: 1px; }
 #title-foot { position: absolute; bottom: 26px; font-size: 10px; color: rgba(154,108,40,0.6); letter-spacing: 2px; }
+
+/* ===== Credits ===== */
+#btn-credits { position: absolute; top: 20px; right: 24px; font-family: inherit; font-size: 10px; letter-spacing: 2px;
+  background: transparent; border: 1px solid var(--line); color: var(--amber-dim); padding: 6px 14px; cursor: pointer; }
+#btn-credits:hover { color: var(--amber-bright); border-color: var(--amber); }
+#credits-panel { position: fixed; inset: 0; z-index: 50; background: rgba(8,5,2,0.94); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px; }
+#credits-body { font-size: 12px; line-height: 2.1; text-align: center; color: var(--amber); max-width: 560px; }
+#credits-body b { color: var(--amber-bright); }

@@ -2,6 +2,7 @@
 // Wind from filtered noise, footfalls per gait, combat from shaped bursts,
 // and the Rust as a detuned choir that grows with your corruption.
 import { SETTINGS } from './settings.js';
+import { mulberry32 } from './rng.js';
 
 // each biome breathes differently: [loudness multiplier, filter centre Hz]
 const WIND_BIOME = {
@@ -120,6 +121,29 @@ export class AudioEngine {
     param.value += (target - param.value) * Math.min(1, dt * rate);
   }
 
+  // garbled speech: a short burble of pitched blips, seeded by the line so a
+  // sentence always sounds like itself; the temperament sets the register.
+  // no words — the desert's machines talk in carrier tones.
+  speak(salt, temperament) {
+    if (!this.ctx || this.ctx.state !== 'running') return;
+    const base = { mercantile: 340, monastic: 250, scavver: 300, ferrocult: 215 }[temperament] || 300;
+    const r = mulberry32(salt >>> 0);
+    const n = 5 + Math.floor(r() * 5);
+    let t = this.ctx.currentTime + 0.02;
+    for (let i = 0; i < n; i++) {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = i % 4 === 3 ? 'square' : 'triangle';
+      o.frequency.value = base * (0.82 + r() * 0.55) * (i % 3 === 2 ? 1.24 : 1);
+      const dur = 0.04 + r() * 0.055;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(i % 4 === 3 ? 0.022 : 0.045, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(this.bus.ui);
+      o.start(t); o.stop(t + dur + 0.02);
+      t += dur + 0.012 + r() * 0.045;
+    }
+  }
+
   // state: { storm, corruption, inField, moving, sprinting, gait, speedFrac,
   //          distMoved, grounded, biome, windMod }
   update(dt, s) {
@@ -128,7 +152,9 @@ export class AudioEngine {
     // a storm always overrides a lull — weather outranks weather.
     const [bMul, bFreq] = WIND_BIOME[s.biome] || [1, 420];
     const lull = Math.max(s.windMod ?? 1, s.storm);
-    const windTarget = (0.012 + s.storm * 0.22 + (s.sprinting ? 0.012 : 0)) * bMul * (0.35 + 0.85 * lull);
+    // the wind dies at the door: indoors it is a memory through the walls
+    const windTarget = (0.012 + s.storm * 0.22 + (s.sprinting ? 0.012 : 0)) * bMul * (0.35 + 0.85 * lull)
+      * (s.interior ? 0.05 : 1);
     this._ease(this.wind.g.gain, windTarget, dt, 1.2);
     this.windTargetF += (Math.random() - 0.5) * 600 * dt;
     this.windTargetF = Math.max(220, Math.min(900, this.windTargetF));

@@ -4,6 +4,10 @@
 // dead man wrote about is corroboration, and the map fills in accordingly.
 import { Rand, hash2 } from './rng.js';
 import { Names } from './grammar.js';
+import {
+  DOCUMENT_EXT_BODIES, DOCUMENT_EXT_TYPES, HISTORY_EXT, EPITAPH_EXT,
+  WHISPER_EXT, SIGNAL_EXT,
+} from '../data/documents.js';
 
 // ---------- small shared helpers ----------
 export function bearingWord(dx, dz) {
@@ -134,6 +138,35 @@ export function composeShard(world, stills, x, z, salt) {
   return { title: doc.label, body, lead, region: f.region };
 }
 
+// ---------- documents from inside the hollow places ----------
+// testimony about THIS building, found in its own halls: the room you are
+// standing in is named, the structure is named, the neighbors are real.
+const INTERIOR_DOCS = [
+  ['MAINTENANCE LOG', 'maintenance log, {ruin}, {room}: the pumps hold. the settling you hear is settling. this notice supersedes the previous notice, which said the same thing. they all do.'],
+  ['WORK ORDER', 'work order {num}, {ruin}: seal the lower doors. do not log what was sealed. the crew of {person} signed off. {person2} did not sign, and is not on the next roster.'],
+  ['LAST TRANSMISSION', 'final transmission, {ruin} interior: air holds. light holds. {person} holds. the door does not answer from the inside either. if anyone in the {region} reads this, the {room} was warm at the end.'],
+  ['SHIFT ROSTER', 'shift roster, the {room}, {ruin}: {person}, {person2}, and one name struck through so hard the plate tore. duties: watch the gauges. do not watch the walls.'],
+  ['EVACUATION NOTICE', 'by order: {ruin} is closed. proceed to the surface in file. leave the heavy things. leave the loud things. {person} will lock the {room} last. — no signature, and the lock is on the inside.'],
+  ['REQUISITION', 'requisition, {ruin}, sublevel: {num} cells, four spans of cable, one replacement for {person}, who went to check the {room} and has stopped drawing rations. approved. all of it approved. take whatever you need.'],
+  ['SCRATCHED PRAYER', 'scratched into the wall of the {room}, letters a finger deep: the ground was supposed to be the safe direction. {person} was right. the salt people were right. dig UP.'],
+  ['INVENTORY TAG', 'inventory, {ruin}: contents of the {room} catalogued and sealed under {num}-{num2}. if the seal is broken and you are not {person}, the company that owned this no longer exists to forgive you. it is yours.'],
+];
+export function composeInteriorDoc(world, stills, mega, salt, roomKind) {
+  const rand = new Rand(hash2(world.seed, salt, 0x4011));
+  const near = stills.stillsNear(mega.x, mega.z, 9000);
+  const [title, tpl] = INTERIOR_DOCS[rand.int(0, INTERIOR_DOCS.length - 1)];
+  const body = tpl
+    .replaceAll('{ruin}', mega.name)
+    .replaceAll('{room}', roomKind)
+    .replaceAll('{region}', world.regionName(mega.x, mega.z).replace(/^the\s+/i, ''))
+    .replaceAll('{still}', near.length ? near[0].name : 'the nearest still')
+    .replaceAll('{person}', Names.person(world.seed, hash2(world.seed, salt, 3)))
+    .replaceAll('{person2}', Names.person(world.seed, hash2(world.seed, salt, 7)))
+    .replaceAll('{num}', String(rand.int(3, 97)))
+    .replaceAll('{num2}', String(rand.int(3, 97)));
+  return { title, body };
+}
+
 // ---------- grounded signal beacons ----------
 const SIGNAL_PERSONAS = [
   'this is {person}, watch officer on the {region} line: depot unsealed, stores released to any receiver. cache lies {dist} to the {dir} of this beacon.{landmark} the watch is ended. spend it well.',
@@ -165,8 +198,8 @@ const HISTORY_TEMPLATES = [
   'the founders walked from {neighbor} after a bad season — {num} souls then, fewer now, prouder though.',
   'a raid out of the red sand came in the early years. the wall facing {dir} is newer than the rest. count the patch-stones.',
   'the well went dry once, for {num} days. nobody talks about what was promised to bring it back.',
-  '{person} founded the watch here after losing a caravan on the {neighbor} road. the bell was their idea.',
-  'the {ruinNoun} on the {dir} horizon — {ruin} — used to light up at night, the elders say. when it stopped, the still threw a festival. nobody remembers why.',
+  '{person} founded the watch here after losing a caravan on the {neighborBare} road. the bell was their idea.',
+  '{ruinNoun} on the {dir} horizon — {ruin} — used to light up at night, the elders say. when it stopped, the still threw a festival. nobody remembers why.',
   'they buried a sentinel under the gate-stone for luck. it has worked so far, depending what you count.',
 ];
 export function stillHistory(world, stills, still, count = 2) {
@@ -180,6 +213,7 @@ export function stillHistory(world, stills, still, count = 2) {
     const idx = rand.int(0, pool.length - 1);
     out.push(pool.splice(idx, 1)[0]
       .replaceAll('{num}', String(rand.int(7, 240)))
+      .replaceAll('{neighborBare}', neighbor.replace(/^the\s+/i, ''))
       .replaceAll('{neighbor}', neighbor)
       .replaceAll('{person}', f.person())
       .replaceAll('{ruin}', f.subject ? f.subject.name : 'the far works')
@@ -198,17 +232,21 @@ const EPITAPHS = [
 ];
 export function memorialLines(world, still, recentDead) {
   const rand = new Rand(hash2(world.seed, still.salt, 0xDEAD));
+  const stillAge = 40 + (hash2(world.seed, still.salt, 77) % 220); // years standing
   const lines = ['the names are cut into the well-rim, oldest at the bottom:'];
   const n = rand.int(2, 4);
   for (let i = 0; i < n; i++) {
-    lines.push(`${Names.person(world.seed, rand.int(0, 1e6))} — ${rand.pick(EPITAPHS)}. year ${rand.int(8, 230)} of the still.`);
+    lines.push(`${Names.person(world.seed, rand.int(0, 1e6))} — ${rand.pick(EPITAPHS)}. year ${rand.int(8, stillAge - 5)} of the still.`);
   }
   for (const m of recentDead) {
-    lines.push(`${m.name} — taken in the raid of day ${m.day}. the cut is still bright.`);
+    lines.push(m.revived
+      ? `${m.name} — taken year ${stillAge}, day ${m.day}; recommissioned from the well's memory. the name is ringed, not struck.`
+      : `${m.name} — taken in the raid. year ${stillAge}, day ${m.day} of the still. the cut is still bright.`);
   }
-  lines.push(recentDead.length
+  const unrevived = recentDead.filter(m => !m.revived);
+  lines.push(unrevived.length
     ? 'the salt keeps what the sand takes. someone has left a coil beside the new names.'
-    : 'the newest cut is old. may it stay that way.');
+    : 'the newest cut is old, or answered. may it stay that way.');
   return lines;
 }
 
@@ -240,3 +278,11 @@ export function whisper(corruption, rand) {
   const pool = corruption >= 75 ? WHISPERS.high : corruption >= 50 ? WHISPERS.mid : WHISPERS.low;
   return pool[rand.int(0, pool.length - 1)];
 }
+
+// ---------- merge data-file extensions into the base pools ----------
+for (const d of DOCUMENTS) if (DOCUMENT_EXT_BODIES[d.label]) d.bodies.push(...DOCUMENT_EXT_BODIES[d.label]);
+DOCUMENTS.push(...DOCUMENT_EXT_TYPES);
+HISTORY_TEMPLATES.push(...HISTORY_EXT);
+EPITAPHS.push(...EPITAPH_EXT);
+for (const k of Object.keys(WHISPER_EXT)) WHISPERS[k].push(...WHISPER_EXT[k]);
+SIGNAL_PERSONAS.push(...SIGNAL_EXT);

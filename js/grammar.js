@@ -1,6 +1,7 @@
 // Replacement-grammar engine (Tracery-style) + the vocabularies of the world.
 // expand(rules, '#origin#', rand) recursively rewrites #symbols# until fixed.
 import { Rand, hash2 } from './rng.js';
+import { REGION, RUIN, MACHINE, PART_EPITHET, RUST_EPITHET, STILL, NEST, PERSON } from '../data/lexicon.js';
 
 export function expand(rules, text, rand, depth = 0) {
   if (depth > 12) return text;
@@ -16,47 +17,7 @@ export function expand(rules, text, rand, depth = 0) {
   });
 }
 
-// ---------- Region names: "The Cinnabar Reach", "Ashfall Expanse" ----------
-const REGION = {
-  origin: ['the #adj.cap# #place.cap#', '#prefix.cap##suffix# #place.cap#', 'the #place.cap# of #abstract.cap#', '#prefix.cap##suffix# #place.cap#'],
-  adj: ['cinnabar', 'ochre', 'glassed', 'silent', 'sunken', 'shattered', 'saline', 'hollow', 'umber', 'static', 'leeward', 'rusting', 'pale', 'broken', 'singing', 'burnished', 'sleeping', 'forgotten'],
-  place: ['reach', 'expanse', 'span', 'waste', 'basin', 'shelf', 'sprawl', 'deep', 'flats', 'verge', 'drift', 'mouth', 'steppe', 'scar'],
-  prefix: ['ash', 'dun', 'sol', 'kar', 'vel', 'mor', 'tal', 'zeph', 'cal', 'or', 'sard', 'hex'],
-  suffix: ['fall', 'mere', 'rend', 'wick', 'march', 'gate', 'rin', 'os', 'und', 'eth'],
-  abstract: ['echoes', 'glass', 'salt', 'sleepers', 'antennae', 'last light', 'slow sand', 'old signals', 'broken vows', 'quiet engines'],
-};
-
-// ---------- Ruin / structure names ----------
-const RUIN = {
-  origin: ['#facility.cap# #designation#', 'the #adj.cap# #facility.cap#', '#name.cap# #facility.cap#'],
-  facility: ['relay', 'foundry', 'arcology', 'reservoir', 'archive', 'bastion', 'terminal', 'works', 'array', 'vault', 'refinery', 'habitat', 'exchange'],
-  designation: ['#letter##num#', '#num#-#letter#', '"#word.cap#"'],
-  letter: ['K', 'V', 'T', 'R', 'X', 'M', 'S', 'A', 'Z', 'H'],
-  num: ['7', '12', '3', '40', '9', '21', '88', '101', '6', '17'],
-  adj: ['drowned', 'gutted', 'blind', 'leaning', 'severed', 'amber', 'whistling', 'patient'],
-  name: ['meridian', 'cassia', 'opaline', 'verdigris', 'halcyon', 'tantalum', 'caldera', 'sirocco'],
-  word: ['lodestar', 'plumb', 'tessera', 'anvil', 'cistern', 'gnomon'],
-};
-
-// ---------- Machine designations: "VL-7 'Gravedigger'" ----------
-const MACHINE = {
-  origin: ['#ser##num# "#epithet.cap#"'],
-  ser: ['VL-', 'KR-', 'TX-', 'MN-', 'OS-', 'HX-', 'RD-', 'SC-'],
-  num: ['2', '3', '5', '7', '9', '11', '13', '17', '21', '40'],
-  epithet: ['gravedigger', 'lornsong', 'palebreaker', 'dustwife', 'cinderjaw', 'mirrorback', 'saltlicker', 'hollowman', 'threadbare', 'glasswalker', 'smokeeater', 'wirenest', 'doomscriber', 'shardfoot'],
-};
-
-// ---------- Part names: epithets layered on a base ----------
-const PART_EPITHET = {
-  origin: ['#maker.cap# #quality#', '#quality.cap#', '#maker.cap#'],
-  maker: ['solenne', 'karst', 'veldt', 'orrin', 'tessek', 'hadal', 'mirin', 'coriol', 'sundermark', 'abrasax'],
-  quality: ['pattern', 'type', 'mark', 'series', 'issue', 'cast'],
-};
-const RUST_EPITHET = {
-  origin: ['#corrupt.cap# #noun.cap#'],
-  corrupt: ['weeping', 'gnawed', 'whispering', 'blooming', 'feverish', 'hungering', 'singing', 'molting'],
-  noun: ['iteration', 'remnant', 'graft', 'tumor', 'chorus', 'wound', 'blossom', 'relic'],
-};
+// Vocabularies live in data/lexicon.js — add words there, not here.
 
 // ---------- Lore fragments found at memory shards ----------
 const LORE = {
@@ -97,33 +58,6 @@ const SIGNAL = {
   dir: ['to bearing north', 'beyond the next ridge', 'out in the open waste', 'under a dead arch'],
 };
 
-// ---------- Still (settlement) names ----------
-const STILL = {
-  origin: ['#prefix.cap##suffix#', 'the #adj.cap# #noun.cap#', '#noun.cap# of the #thing.cap#'],
-  prefix: ['brine', 'salt', 'white', 'quiet', 'low', 'glass', 'last', 'far', 'kettle', 'cinder'],
-  suffix: ['rest', 'well', 'stead', 'hold', 'reach', 'mark', 'haven', 'gather'],
-  adj: ['patient', 'white', 'standing', 'mended', 'unrusted', 'shaded', 'sworn'],
-  noun: ['well', 'cistern', 'stillness', 'gate', 'lantern', 'refuge', 'commons'],
-  thing: ['Clean Ground', 'Second Boot', 'Long Water', 'Kept Flame', 'White Line'],
-};
-
-// ---------- Fabricator nests (the Rust's ugly industry) ----------
-const NEST = {
-  origin: ['the #adj.cap# #fac.cap#', '#fac.cap# #letter##num#', 'the #fac.cap# that #does#'],
-  adj: ['weeping', 'gnawing', 'humming', 'blooming', 'stuttering', 'patient', 'red'],
-  fac: ['hatchery', 'printworks', 'forge-wound', 'assembly', 'birthing-rack', 'foundry'],
-  letter: ['K', 'R', 'X', 'V', 'Z'],
-  num: ['3', '7', '9', '13', '21'],
-  does: ['sings flat', 'never sleeps', 'counts its children', 'remembers fire'],
-};
-
-// ---------- People (remnant minds in patchwork chassis) ----------
-const PERSON = {
-  origin: ['#name.cap#', '#name.cap# the #title.cap#', 'Old #name.cap#', '#name.cap# #title2.cap#'],
-  name: ['vesper', 'mirele', 'cassun', 'odo', 'brann', 'sefa', 'tirel', 'ondine', 'kepp', 'sol', 'marda', 'ivo', 'nef', 'quill', 'rusk', 'tamsin', 'jorrel', 'ash'],
-  title: ['lathe', 'quiet', 'ledger', 'wirewright', 'salt-eyed', 'patient', 'unrusted', 'twice-built', 'kettle', 'mended'],
-  title2: ['Halfgear', 'Brinehand', 'Coilworn', 'Saltborn', 'Threadneedle', 'Slagheart'],
-};
 
 function gen(rules, seed, salt) {
   return expand(rules, '#origin#', new Rand(hash2(seed, salt, 0x517cc1b7)));

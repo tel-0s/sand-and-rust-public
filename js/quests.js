@@ -5,6 +5,7 @@
 import { Blackboard, DesignMove, runMoves } from './blackboard.js';
 import { Names } from './grammar.js';
 import { hash2, Rand } from './rng.js';
+import { MOTIVE_EXT } from '../data/motives.js';
 
 // ---------- motives, by temperament ----------
 const MOTIVES = {
@@ -204,3 +205,6 @@ export function generateChain(world, giver, neighborStills) {
     reward: { scrap: reward[1], matId: reward[2], matN: reward[3], part: reward[4] },
   };
 }
+
+// merge data-file motives: more reasons to cross the sand
+for (const t of Object.keys(MOTIVE_EXT)) MOTIVES[t].push(...MOTIVE_EXT[t]);

@@ -8,6 +8,7 @@ import { GeoBuilder } from './structures.js';
 import { makeBox, makeCircle } from './collision.js';
 import { BIOMES, biomeWeights } from './biomes.js';
 import { TEMPERAMENTS, QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
+import { rollFolkLoadout, attachGreebles } from './enemies.js';
 
 const STILL_CELL = 1900;
 const FIELD_R = 42;            // the still's safe-field radius
@@ -75,9 +76,19 @@ export class NPC {
     this.mesh = buildResidentMesh(still.temperament);
     scene.add(this.mesh);
     this.recruitable = true;
-    // flesh would call it mortality; they call it warranty
-    this.maxHp = 95; this.hp = 95;
-    this.dmg = 10; this.atkT = 0; this.flashT = 0;
+    // flesh would call it mortality; they call it warranty.
+    // frontier folk are harder folk: defenders scale with their region
+    const tier = 1 + Math.min(1.5, Math.hypot(still.x, still.z) / 2000);
+    this.maxHp = Math.round(95 * tier); this.hp = this.maxHp;
+    this.dmg = 10 * tier; this.atkT = 0; this.flashT = 0;
+    // of one substance: residents wear real parts too
+    this.loadout = rollFolkLoadout(rng, tier);
+    for (const p of this.loadout) {
+      this.maxHp += Math.round((p.stats.hull || 0) * 0.5 + (p.stats.armor || 0));
+      if (p.slot === 'ARMS') this.dmg += (p.stats.damage || 0) * 0.3;
+    }
+    this.hp = this.maxHp;
+    attachGreebles(this.mesh, this.loadout, 0.8);
 
     const a = rng.range(0, Math.PI * 2), r = rng.range(4, 16);
     this.home = { x: still.x + Math.sin(a) * r, z: still.z + Math.cos(a) * r };
@@ -337,6 +348,23 @@ export class StillManager {
       const d = Math.hypot(rec.info.x - px, rec.info.z - pz);
       if (d > 950) { this.unload(key); continue; }
       if (d < 200) {
+        // the wall watches back: turrets pick off machines inside their arc
+        for (const t of rec.turrets || []) {
+          t.cd -= dt;
+          if (t.cd > 0 || !enemies) continue;
+          let foe = null, fd = 45;
+          for (const e of enemies.enemies) {
+            if (e.def.stationary) continue;
+            const d2 = Math.hypot(e.pos.x - t.x, e.pos.z - t.z);
+            if (d2 < fd) { fd = d2; foe = e; }
+          }
+          if (foe) {
+            t.cd = 1.6;
+            t.barrel.lookAt(foe.pos.x, foe.pos.y + foe.def.scale, foe.pos.z);
+            foe.hurt(8 * t.tier, (foe.pos.x - t.x) / fd * 3, (foe.pos.z - t.z) / fd * 3);
+            if (this.hooks.onTurretFire) this.hooks.onTurretFire(t, foe);
+          }
+        }
         for (let i = rec.npcs.length - 1; i >= 0; i--) {
           const n = rec.npcs[i];
           if (n.hp <= 0) {
@@ -379,11 +407,36 @@ export class StillManager {
       lamp.position.set(lx, ly, lz);
       this.scene.add(lamp); lamps.push(lamp);
     }
+    // watch turrets: one on the wall by right, a second if a wanderer funded it
+    const turrets = [];
+    const turretCols = [];
+    const turretCount = 1 + (this.hooks.hasFundedTurret && this.hooks.hasFundedTurret(info.key) ? 1 : 0);
+    const trng = randFromHash(this.world.seed, info.salt, 337);
+    for (let i = 0; i < turretCount; i++) {
+      const a = trng.range(0, Math.PI * 2);
+      const tx = info.x + Math.sin(a) * 33, tz = info.z + Math.cos(a) * 33;
+      const ty = this.world.getHeight(tx, tz);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.6, 0.5),
+        new THREE.MeshLambertMaterial({ color: 0x4a443e }));
+      post.position.set(tx, ty + 1.3, tz);
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 1.1),
+        new THREE.MeshLambertMaterial({ color: 0x2e2a26 }));
+      barrel.position.set(tx, ty + 2.5, tz);
+      this.scene.add(post, barrel);
+      const tCol = makeCircle(tx, tz, 0.5, ty + 2.6, false);
+      this.world.staticColliders.push(tCol);
+      turretCols.push(tCol);
+      turrets.push({ x: tx, y: ty + 2.5, z: tz, post, barrel, cd: 0, tier: 1 + Math.min(1.5, Math.hypot(info.x, info.z) / 2000) });
+    }
+
     const rng = randFromHash(this.world.seed, info.salt, 991);
-    const neighbors = this.stillsNear(info.x, info.z, 6500).filter(s => s.key !== info.key);
+    const neighbors = this.stillsNear(info.x, info.z, 9500).filter(s => s.key !== info.key);
     const npcs = [];
     for (let i = 0; i < info.residents; i++) {
       const n = new NPC(this.scene, this.world, info, i, rng, neighbors);
+      // some names are kept against the drift of the pools (legacy revivals)
+      const ov = this.hooks.nameOverride && this.hooks.nameOverride(n.id);
+      if (ov) n.name = ov;
       // someone who walks with you (or once did) is not also at home;
       // and the dead, the desert keeps
       if ((this.hooks.isRecruited && this.hooks.isRecruited(n.id)) ||
@@ -393,7 +446,7 @@ export class StillManager {
     this.world.staticColliders.push(...built.colliders);
     const zone = { x: info.x, z: info.z, r: FIELD_R };
     if (this.hooks.safeZones) this.hooks.safeZones.push(zone);
-    this.loaded.set(info.key, { info, mesh, npcs, lamps, colliders: built.colliders, zone });
+    this.loaded.set(info.key, { info, mesh, npcs, lamps, colliders: [...built.colliders, ...turretCols], zone, turrets });
   }
 
   unload(key) {
@@ -402,6 +455,7 @@ export class StillManager {
     this.scene.remove(rec.mesh); rec.mesh.geometry.dispose();
     for (const l of rec.lamps) this.scene.remove(l);
     for (const n of rec.npcs) n.dispose(this.scene);
+    for (const t of rec.turrets || []) this.scene.remove(t.post, t.barrel);
     this.world.staticColliders = this.world.staticColliders.filter(c => !rec.colliders.includes(c));
     if (this.hooks.safeZones) {
       const i = this.hooks.safeZones.indexOf(rec.zone);

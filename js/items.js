@@ -9,6 +9,7 @@ export const MATERIALS = {
   nodule:  { id: 'nodule', name: 'Rust Nodule', icon: '❂', desc: 'a pinch of the infection, dormant. probably dormant.' },
   salt:    { id: 'salt', name: 'Salt Crystal', icon: '❄', desc: 'white ground is clean ground.' },
   cell:    { id: 'cell', name: 'Power Cell', icon: '▮', desc: 'a held breath of electricity.' },
+  shaper:  { id: 'shaper', name: 'Neuromanifold Shaper', icon: '❖', desc: 'the loom minds were woven on. warm, and it should not be warm.' },
 };
 
 export const CONSUMABLES = {

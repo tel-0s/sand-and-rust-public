@@ -168,19 +168,30 @@ export class UI {
     }
     // the pinned job rides the compass too, in teal
     const taskEl = $('compass-task'), panel = $('track-panel');
-    const tracked = g.trackedChainId && g.chains.find(c => c.id === g.trackedChainId && !c.done);
-    const cur = tracked && tracked.steps[tracked.current];
-    if (cur && cur.x !== undefined) {
-      const bearing = Math.PI - Math.atan2(cur.x - p.pos.x, cur.z - p.pos.z);
+    let pin = null; // {x, z, title, desc}
+    if (g.tracked && g.tracked.kind === 'chain') {
+      const ch = g.chains.find(c => c.id === g.tracked.id && !c.done);
+      const cur = ch && ch.steps[ch.current];
+      if (cur && cur.x !== undefined) pin = { x: cur.x, z: cur.z, title: ch.title, desc: cur.desc };
+    } else if (g.tracked && g.tracked.kind === 'signal') {
+      const q = g.quests.find(q => q.id === g.tracked.id && !q.done);
+      if (q) pin = { x: q.x, z: q.z, title: q.title, desc: 'reach the signal source' };
+    } else if (g.tracked && g.tracked.kind === 'epic' && g.epic) {
+      pin = g.epic.state === 'seek'
+        ? { x: g.epic.x, z: g.epic.z, title: `THE RECOMMISSION OF ${g.epic.npcName.toUpperCase()}`, desc: `take the Shaper from the Mother beneath ${g.epic.megaName}` }
+        : { x: g.epic.stillX, z: g.epic.stillZ, title: `THE RECOMMISSION OF ${g.epic.npcName.toUpperCase()}`, desc: `surrender the Shaper to the well at ${g.epic.stillName}` };
+    }
+    if (pin) {
+      const bearing = Math.PI - Math.atan2(pin.x - p.pos.x, pin.z - p.pos.z);
       let rel = bearing - heading;
       while (rel > Math.PI) rel -= Math.PI * 2;
       while (rel < -Math.PI) rel += Math.PI * 2;
       taskEl.style.left = Math.min(404, Math.max(6, 210 + (rel / (Math.PI * 2)) * 960)) + 'px';
       taskEl.classList.remove('hidden');
       panel.classList.remove('hidden');
-      $('track-title').textContent = tracked.title;
-      $('track-step').textContent = cur.desc;
-      $('track-dist').textContent = `◈ ${Math.round(Math.hypot(cur.x - p.pos.x, cur.z - p.pos.z))} m`;
+      $('track-title').textContent = pin.title;
+      $('track-step').textContent = pin.desc;
+      $('track-dist').textContent = `◈ ${Math.round(Math.hypot(pin.x - p.pos.x, pin.z - p.pos.z))} m`;
     } else {
       taskEl.classList.add('hidden');
       panel.classList.add('hidden');
@@ -254,9 +265,21 @@ export class UI {
     disp.textContent = `${session.tier.label} (${Math.round(session.effD)})`;
     disp.className = session.tier.cls;
     $id('dlg-text').innerHTML = session.lines.map(l =>
-      l.sys ? `<div class="dlg-sys">${l.text}</div>` : `<div>“${l.text}”</div>`).join('');
+      l.sys ? `<div class="dlg-sys">${l.text}</div>` : `<div>“${l.html ?? l.text}”</div>`).join('');
     const box = $id('dlg-text');
+    box.querySelectorAll('.tw').forEach(el =>
+      el.addEventListener('click', () => this.game.dialogueAction('topic:' + el.dataset.t)));
     box.scrollTop = box.scrollHeight;
+    // the rail: every subject you've ever picked up, newest first
+    const rail = $id('dlg-topic-list');
+    rail.innerHTML = '';
+    for (const t of session.topics || []) {
+      const b = document.createElement('button');
+      b.className = 'dlg-topic' + (t.fresh ? ' fresh' : '');
+      b.textContent = t.label;
+      b.addEventListener('click', () => this.game.dialogueAction('topic:' + t.id));
+      rail.appendChild(b);
+    }
     const opts = $id('dlg-options');
     opts.innerHTML = '';
     for (const o of session.options) {
@@ -535,6 +558,18 @@ export class UI {
       ctx.fillStyle = m.kind === 'still' ? '#5fb8a6' : m.kind === 'camp' ? '#ff8a3c' : m.kind === 'nest' ? (m.destroyed ? '#5a4438' : '#e8401f') : '#ffd27f';
       ctx.fillText(m.name.toUpperCase() + (m.kind === 'nest' && m.destroyed ? ' (SILENCED)' : ''), sx + 9, sy + 3);
     }
+    // caravans in earshot: a moving bell on the map while they're near
+    for (const c of (g.caravans ? g.caravans.loadedList() : [])) {
+      if (!c.members.some(m => m.hp > 0)) continue;
+      const [sx, sy] = toScreen(c.pseudoStill.x, c.pseudoStill.z);
+      if (sx < 0 || sy < 0 || sx > cv.width || sy > cv.height) continue;
+      ctx.fillStyle = '#ffd27f';
+      ctx.beginPath(); // a little bell
+      ctx.moveTo(sx, sy - 5); ctx.lineTo(sx + 4, sy + 2); ctx.lineTo(sx - 4, sy + 2);
+      ctx.fill();
+      ctx.fillRect(sx - 1.5, sy + 2, 3, 2.5);
+      ctx.fillText('CARAVAN', sx + 8, sy + 3);
+    }
     // quest targets
     for (const q of g.quests) {
       if (q.done) continue;
@@ -605,8 +640,9 @@ export class UI {
     const tab = this.journalTab;
     const list = $('journal-list');
     list.innerHTML = '';
-    // active work chains first — the desert's open contracts
-    if (tab === 'all' || tab === 'work') for (const ch of [...g.chains].reverse()) {
+    // active work chains first — the desert's open contracts; the paid sink
+    const chainOrder = [...g.chains].reverse().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+    if (tab === 'all' || tab === 'work') for (const ch of chainOrder) {
       const el = document.createElement('div');
       el.className = 'journal-entry quest' + (ch.done ? ' done' : '');
       const steps = ch.steps.map((s, i) => {
@@ -616,7 +652,7 @@ export class UI {
       }).join('');
       let dist = '';
       const cur = ch.steps[ch.current];
-      const isTracked = g.trackedChainId === ch.id;
+      const isTracked = g.tracked && g.tracked.kind === 'chain' && g.tracked.id === ch.id;
       if (!ch.done && cur && cur.x !== undefined) {
         dist = `<div class="je-dist">▸ ${Math.round(Math.hypot(cur.x - g.player.pos.x, cur.z - g.player.pos.z))} m — ${isTracked ? '◈ ON COMPASS · click to unpin' : 'click to pin to compass'}</div>`;
       }
@@ -630,9 +666,13 @@ export class UI {
       list.appendChild(el);
     }
     let items = [...g.journal].reverse();
-    if (tab === 'work') items = items.filter(e => e.type === 'quest' || e.cat === 'work');
+    if (tab === 'work') {
+      items = items.filter(e => e.type === 'quest' || e.cat === 'work')
+        .sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0)); // resolved signals sink below
+    }
     else if (tab === 'memories') items = items.filter(e => e.type !== 'quest' && (e.cat || 'memory') === 'memory');
     else if (tab === 'places') items = items.filter(e => e.cat === 'place');
+    else if (tab === 'events') items = items.filter(e => e.cat === 'event');
     if (!items.length && !list.children.length) list.innerHTML = '<div style="color:var(--amber-dim);font-size:12px;padding:20px">nothing filed here yet. the desert is patient.</div>';
     for (const e of items) {
       const el = document.createElement('div');
@@ -643,6 +683,12 @@ export class UI {
         dist = `<div class="je-dist">▸ signal source ${d} m away — marked on map</div>`;
       }
       el.innerHTML = `<div class="je-title">${e.title}${e.done ? ' — RESOLVED' : ''}</div><div class="je-body">${e.body}</div>${dist}`;
+      // active signals can ride the compass too
+      if (e.type === 'quest' && !e.done && e.x !== undefined) {
+        el.style.cursor = 'pointer';
+        if (g.tracked && g.tracked.kind === 'signal' && g.tracked.id === e.id) el.style.borderLeftColor = '#fff';
+        el.addEventListener('click', () => { g.trackSignal(e.id); this.renderJournal(); });
+      }
       list.appendChild(el);
     }
   }
