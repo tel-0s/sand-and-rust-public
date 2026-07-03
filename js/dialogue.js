@@ -183,6 +183,15 @@ const SMALLTALK = {
   },
 };
 
+// every still keeps a landmark, and everyone has an opinion about it
+const LANDMARK_TALK = [
+  'you\u2019ve seen {landmark}? older than the walls. older than the well, some say, but not where the well can hear.',
+  'we tell time by {landmark}\u2019s shadow, weather by its sound, and luck by whether the new arrivals ask about it. you just asked.',
+  'someone offered to haul {landmark} away for scrap once. the whole still came out to watch them leave. empty-handed.',
+  'children dare each other to touch {landmark} at midnight. so do some of the adults. nobody says why.',
+  '{landmark} was here when the founders came. it will be here after. we are the temporary ones, and it is polite enough not to mention it.',
+];
+
 const RUMOR_LEAD = [
   'word for word, as i heard it:',
   'you didn’t hear this from me:',
@@ -211,9 +220,11 @@ export function smalltalk(npc, rand, ctx) {
   if (ctx.mega) pool.push(...t.mega, ...t.mega); // grounded lines surface often
   if (ctx.isNight) pool.push(...t.night);
   if (ctx.storm > 0.25) pool.push(...t.storm, ...t.storm);
+  if (ctx.landmark) pool.push(...LANDMARK_TALK);
   const bare = (ctx.region || '').replace(/^the\s+/i, '');
   let line = rand.pick(pool).replaceAll('{region}', bare);
   if (ctx.mega) line = line.replaceAll('{megaName}', ctx.mega.name).replaceAll('{megaDir}', ctx.mega.dir);
+  if (ctx.landmark) line = line.replaceAll('{landmark}', ctx.landmark);
   return decorate(line, npc, rand);
 }
 export function rumorText(npc, mega, from, rand) {

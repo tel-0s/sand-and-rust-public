@@ -202,6 +202,11 @@ const HISTORY_TEMPLATES = [
   '{ruinNoun} on the {dir} horizon — {ruin} — used to light up at night, the elders say. when it stopped, the still threw a festival. nobody remembers why.',
   'they buried a sentinel under the gate-stone for luck. it has worked so far, depending what you count.',
 ];
+const LANDMARK_HISTORY = [
+  'the founders did not build {landmark}; they built AROUND it. every map of the still starts there.',
+  'in the lean years they nearly traded {landmark} away. the vote failed by one voice, and nobody ever admitted whose.',
+  '{landmark} predates the first wall by any count that matters. the still is, in a sense, its garden.',
+];
 export function stillHistory(world, stills, still, count = 2) {
   const rand = new Rand(hash2(world.seed, still.salt, 0x4157));
   const f = gatherFacts(world, stills, still.x, still.z, rand);
@@ -220,6 +225,10 @@ export function stillHistory(world, stills, still, count = 2) {
       .replaceAll('{ruinNoun}', f.subject ? (MEGA_NOUN[f.subject.type] || 'the structure') : 'the structure')
       .replaceAll('{dir}', f.subject ? f.subject.dir : 'east'));
   }
+  // the landmark is part of the canon, and size is worth remarking on
+  if (still.landmark) out.push(rand.pick(LANDMARK_HISTORY).replaceAll('{landmark}', still.landmark.name));
+  if (still.sizeClass === 'town') out.unshift(`${still.name} counts as a town by any desert measure — ${still.residents} souls inside a tall wall, three gates, and room at the well for more.`);
+  else if (still.sizeClass === 'village') out.unshift(`${still.name} has grown past a huddle: a second ring of roofs, a working quarter, ${still.residents} souls who all know your business by dusk.`);
   return out;
 }
 

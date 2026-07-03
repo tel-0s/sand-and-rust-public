@@ -379,7 +379,12 @@ export class CaravanManager {
         if (st.progress >= 1 && !c._arrived) { c._arrived = true; if (this.hooks.onEscortArrived) this.hooks.onEscortArrived(c); }
       } else {
         sched = this.schedule(c.route, worldT);
-        halted = isNight || sched.resting || c.ambushed;
+        // within reach of shelter, a caravan pushes through the dark to the
+        // gate instead of camping a stone's throw from the wall (and waking
+        // up behind its own schedule, apparently walking home confused)
+        const nearHaven = Math.hypot(sched.to.x - sched.x, sched.to.z - sched.z) < 260
+          || Math.hypot(sched.from.x - sched.x, sched.from.z - sched.z) < 260;
+        halted = (isNight && !nearHaven) || sched.resting || c.ambushed;
       }
       c.pseudoStill.x = sched.x; c.pseudoStill.z = sched.z;
       const dir = Math.atan2(sched.to.x - sched.from.x, sched.to.z - sched.from.z);

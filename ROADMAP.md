@@ -491,6 +491,122 @@ Playtest findings from riding with the caravans:
   the world remembering, not the game pinging. Contract escorts always get
   the full alarm. Nothing about the simulation was faked.
 
+## build 2026.7.23 — "Stills That Live" (ARC II, build 5) — ✅ SHIPPED · ARC COMPLETE
+
+The closing pass: the roads press into the earth, and no hamlet is anyone
+else's hamlet.
+
+- ✅ **Road carving** (the producer's idea): traffic presses the desert
+  flat. Within a road's width the dune and detail terms of the height
+  field are suppressed — the land's large shape remains, so it reads as a
+  cut through the dunes, not a trench through the world — the ground
+  blends toward packed earth, scatter steps aside, and the buried cities
+  part around the way. Along-road bumpiness measures ~2.5× smoother than
+  the ground beside it. Segments come from the same route graph the
+  caravans walk (cached per lattice cell, injected before the first chunk
+  builds, deterministic forever); founding a hearth re-carves the roads
+  around it.
+- ✅ **The variety pass**: every still gets a personality — a seeded
+  palette lean, a layout (ring, street, or windbreak huddle), and two
+  flavor pieces from a shared catalog (windwheel, stone troughs, drying
+  racks, watch platform, half-buried statue, prayer lines, cairns, a
+  scrap arch) on top of its landmark. Even the smallest hamlet is nobody
+  else's hamlet.
+
+ARC II — STILLS THAT LIVE is complete: greater stills (b19) → dynamic
+fortunes (b20) → the stilldwellers wake (b21) → the hearth (b22) → carved
+roads & variety (b23). The desert now has communities that live, work,
+die, and can be brought back — and the ground itself remembers where
+their bells travel.
+
+## build 2026.7.22 — "Stills That Live" (ARC II, build 4) — ✅ SHIPPED
+
+The hearth — the player finally gets a home, and the home is other people.
+
+- ✅ **Dry wells**: the stills that never were. Cells where the salt ran
+  good but the founders never came exist deterministically in the lattice;
+  they now stand visible in the waste — a broken rim, a fallen crossbeam.
+- ✅ **Found a hearth** (8 ▤ · 2 ▣ · 2 ❄ · 1 ▮): restore a dry well and a
+  real still enters the world — named, landmarked, on the map, with your
+  founding as the FIRST line of its history ("the first lamp was theirs").
+  It joins everything automatically: the route graph (caravan bells will
+  come to your town), the economy, gossip, raids, all of it — because it
+  is not a special object, it is a still.
+- ✅ **Founder's grace**: hope carries the first days — vitality is floored
+  during the grace window, so a hearth always takes root. Whether it
+  survives afterward depends on the world you lit it in: silence the
+  nests, keep the roads open, and it becomes a village that owes you
+  everything (rep +15 at founding).
+- ✅ **Rekindling**: the capped well of an abandoned still offers the same
+  mercy cheaper (5 ▤ · 1 ▣ · 2 ❄) — pry the cap, sweep the yard, and the
+  lifecycle machinery runs in reverse.
+
+## build 2026.7.21 — "Stills That Live" (ARC II, build 3) — ✅ SHIPPED
+
+The stilldwellers wake up — utility-lite AI, RimWorld-adjacent but honest
+to our scale:
+
+- ✅ **Job posts**: the yard's real geometry is the schedule — stalls,
+  shrines, totems, sorting heaps, crane-yards, gates, the well (two spots,
+  so company happens), and the landmark (someone is always looking at it).
+- ✅ **Drives**: each soul carries simple needs (work, social) that build
+  and discharge, a seeded work ethic, and picks the highest-utility post
+  for the hour — brokers work their stalls, sweepers take the dawn shrine,
+  wardens stand the gates, and at dusk *everyone drifts to the well*.
+- ✅ **Observable life**: souls walk to their posts, dwell and face their
+  work, find whoever shares the post and turn to them — and two souls at
+  one post pass the time in carrier tones you can hear as you walk by.
+- ✅ Fights, fleeing, and night-home all still outrank the schedule; fading
+  stills are quieter automatically (fewer souls, same clock).
+
+## build 2026.7.20 — "Stills That Live" (ARC II, build 2) — ✅ SHIPPED
+
+Dynamic stills — the years, made visible.
+
+- ✅ **Fortunes are assessed, not simulated offstage**: each still carries a
+  persisted stage (−2 abandoned · −1 fading · 0 · +1 grown), judged when
+  you arrive — one judgment per two world-days elapsed, capped at two, so
+  you can come home to a change but never to chaos.
+- ✅ **Vitality is the world, summed**: open roads feed a still; cut roads
+  starve it; living printworks press on it; its dead diminish it; your
+  standing, funded guns, and revived souls steady it; and a seeded drift
+  means some places were always going to fade. The save-a-still playbook
+  falls out of the math: reopen the roads, silence the nests, fund the
+  wall, bring back the dead.
+- ✅ **Decay legible in retrospect** (the acceptance test, passed): fading
+  stills board their doors, sand drifts against the thresholds, half the
+  lamps go dark. Abandoned stills stand empty — walls breached to rubble,
+  no safe field (the feral ones wander the yard), the well capped. But the
+  rim still keeps its names, and the landmark outlives everything.
+- ✅ **Growth you can watch**: thriving stills dress a class up — a hamlet
+  with good roads builds like a village — new souls arrive, and a dwelling
+  rises under scaffolding.
+- ✅ Every turn writes history ("by day 31 the lean years showed: doors
+  boarded, lamps dark, sand taking the thresholds back"), journals an
+  EVENT, and moves the market (fading stills pay scarcity prices).
+
+## build 2026.7.19 — "Stills That Live" (ARC II, build 1) — ✅ SHIPPED
+
+Greater Stills: size is earned from the ground.
+
+- ✅ **Size classes measured from the pan**: the generator samples the salt
+  field on rings around each settlement's heart; the measured extent makes
+  ~2/3 hamlets, ~1/3 villages, and a rare few percent towns (tuned against
+  the actual extent distribution, not guessed). Population scales with
+  class — towns run 8–13 souls. All new randomness on a second seeded
+  stream, so existing saves keep their temperaments and populations (the
+  pools lesson, applied).
+- ✅ **District grammar**: villages and towns grow a second ring of roofs
+  and a temperament quarter — market rows under awnings, monastic cloister
+  walks, ferro-cult totem gardens, scavver crane-yards. Towns stand taller
+  walls with three gates.
+- ✅ **Landmarks**: every still keeps one — the cracked bell, the dead
+  fountain, the glass obelisk, the door to nowhere… ten types, seeded,
+  built into the yard. Residents point at them in smalltalk ("children
+  dare each other to touch it at midnight. so do some of the adults."),
+  and founding histories cite them ("the founders did not build it; they
+  built AROUND it").
+
 ## build 2026.7.18 — bookkeeping — ✅ SHIPPED
 
 The version format is year.month.**buildCounter** (2026.7.18 = the 18th

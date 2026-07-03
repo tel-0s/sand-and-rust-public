@@ -51,6 +51,8 @@ export class World {
     this.discovered = [];         // map markers {name, kind, x, z}
     this.questCaches = [];        // {id, x, z, spawned}
     this.staticColliders = [];    // world-fixed (anchor obelisk, field posts)
+    this._roadCache = new Map();  // lattice cell -> road segments (carving)
+    this.roadsAt = null;          // injected: (x, z) -> route list
     this.groundOverride = null;   // set while inside a hollow place (interiors.js)
     this.anchorActiveSet = new Set(); // restored waystation anchors (by mega key)
     this.discoveredKeys = new Set();
@@ -65,13 +67,61 @@ export class World {
     return [a, r];
   }
 
+  // THE ROADS, CARVED. Traffic presses the desert flat: within a road's
+  // width, the dune and detail terms are suppressed (the land's large shape
+  // remains — a cut through the dunes, not a trench through the world).
+  // Segments come from the same route graph the caravans walk, cached per
+  // lattice cell; the provider is injected by the game after the still
+  // lattice exists, before the first chunk ever builds.
+  roadFactor(x, z) {
+    if (!this.roadsAt) return 0;
+    const cx = Math.floor(x / 1900), cz = Math.floor(z / 1900);
+    const key = cx + ',' + cz;
+    let segs = this._roadCache.get(key);
+    if (!segs) {
+      segs = [];
+      for (const rt of this.roadsAt((cx + 0.5) * 1900, (cz + 0.5) * 1900)) {
+        segs.push([rt.a.x, rt.a.z, rt.b.x, rt.b.z]);
+      }
+      this._roadCache.set(key, segs);
+    }
+    let f = 0;
+    for (const [ax, az, bx, bz] of segs) {
+      const dx = bx - ax, dz = bz - az;
+      const L2 = dx * dx + dz * dz || 1;
+      let t = ((x - ax) * dx + (z - az) * dz) / L2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      if (d < 13) {
+        const g = Math.min(1, (13 - d) / 8);
+        if (g > f) f = g;
+        if (f >= 1) break;
+      }
+    }
+    return f;
+  }
+
+  // rebuild the world's memory of the roads (a hearth was founded)
+  refreshRoads(x, z, r) {
+    this._roadCache.clear();
+    for (const [key, rec] of this.chunks) {
+      if (rec.state !== 'ready') continue;
+      const cxw = rec.cx * CHUNK + CHUNK / 2, czw = rec.cz * CHUNK + CHUNK / 2;
+      if (Math.hypot(cxw - x, czw - z) > r) continue;
+      this.disposeChunk(rec);
+      this.chunks.delete(key);
+    }
+  }
+
   sample(x, z) {
     const [a, r] = this.controls(x, z);
     const w = biomeWeights(a, r, this._w);
     // shared base elevation
     let h = this.nElev.fbm(x * 0.0016, z * 0.0016, 4) * 16
       + this.nElev2.fbm(x * 0.0005, z * 0.0005, 2) * 12;
-    // domain-warped dune field, blended per biome
+    // domain-warped dune field, blended per biome — pressed flat on the roads
+    const road = this.roadFactor(x, z);
+    const keep = 1 - road * 0.85;
     const warp = this.nWarp.noise(x * 0.004, z * 0.004) * 28;
     const detail = this.nDetail.fbm(x * 0.045, z * 0.045, 2);
     for (let i = 0; i < BIOMES.length; i++) {
@@ -79,9 +129,9 @@ export class World {
       const b = BIOMES[i];
       const dn = this.nDune.noise((x + warp) * b.duneScale, (z - warp * 0.6) * b.duneScale * 0.42);
       const dune = Math.pow(1 - Math.abs(dn), 1.8) * b.duneAmp;
-      h += w[i] * (dune + detail * b.detailAmp + b.baseLift);
+      h += w[i] * ((dune + detail * b.detailAmp) * keep + b.baseLift);
     }
-    return { h, w, a, r };
+    return { h, w, a, r, road };
   }
 
   getHeight(x, z) { return this.sample(x, z).h; }
@@ -161,6 +211,10 @@ export class World {
           cg += s.w[bi] * (b.colLow[1] + (b.colHigh[1] - b.colLow[1]) * g);
           cb += s.w[bi] * (b.colLow[2] + (b.colHigh[2] - b.colLow[2]) * g);
         }
+        if (s.road > 0.05) { // packed earth where the caravans walk
+          const t = s.road * 0.5;
+          cr += (0.52 - cr) * t; cg += (0.45 - cg) * t; cb += (0.34 - cb) * t;
+        }
         col[vi] = cr; col[vi + 1] = cg; col[vi + 2] = cb;
         vi += 3;
       }
@@ -204,6 +258,7 @@ export class World {
           if (sw.w[cityIdx] < 0.45) continue;
           const brng = randFromHash(this.seed, gx * 7 + 3, gz * 7 + 5);
           if (!brng.chance(0.5)) continue;
+          if (this.roadFactor(bx, bz) > 0.3) continue; // the road threads the city
           colliders.push(...addBuilding(gb, brng, bx, sw.h, bz));
         }
       }
@@ -220,6 +275,7 @@ export class World {
       const n = Math.floor(count) + (rng.chance(count % 1) ? 1 : 0);
       for (let i = 0; i < n; i++) {
         const x = ox + rng.range(2, CHUNK - 2), z = oz + rng.range(2, CHUNK - 2);
+        if (this.roadFactor(x, z) > 0.35) continue; // traffic keeps the way clear
         const c = fn(gb, rng, x, this.getHeight(x, z), z);
         if (c) Array.isArray(c) ? colliders.push(...c) : colliders.push(c);
       }

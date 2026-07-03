@@ -171,6 +171,8 @@ class Game {
     this.epic = null;             // the recommission of a significant soul (one at a time)
     this.nameOverrides = {};      // names kept against the drift of the pools, by npc id
     this.routesCut = {};          // roads that lost their caravan: routeKey -> quiet until worldT
+    this.stillStates = {};        // dynamic fortunes: key -> { stage: -2..+1, lastAssess, graceUntil? }
+    this.foundedStills = {};      // hearths you lit: cellKey -> { t: worldT founded }
     this._megaZones = new Map();  // live safe zones for restored anchors
     this.events = [];             // deeds that travel ahead of you
     this._stillWarned = new Set();
@@ -186,6 +188,13 @@ class Game {
     // the Stills: living settlements beside the salt
     // (created before freshStart so backgrounds can spawn you among people)
     this.stills = new StillManager(this.scene, this.world, {
+      assess: (info) => this.assessStill(info),
+      isFounded: (key) => this.foundedStills[key],
+      onChatter: (npc) => {
+        if (Math.hypot(npc.pos.x - this.player.pos.x, npc.pos.z - this.player.pos.z) < 28) {
+          this.audio.speak((Math.random() * 0xffffffff) >>> 0, npc.temperament);
+        }
+      },
       nameOverride: (id) => this.nameOverrides[id],
       safeZones: this.enemies.safeZones,
       isRecruited: (id) => this.recruitedIds.includes(id),
@@ -311,6 +320,9 @@ class Game {
         this.recordEvent('helped', c.pseudoStill.name);
       },
     });
+    // the roads are carved into the terrain itself: inject the route graph
+    // into height synthesis NOW — before the first chunk ever builds
+    this.world.roadsAt = (x, z) => this.caravans.routesNear(x, z);
     this.followers.onDown = (f) => {
       this.ui.toast(downLine(f, new Rand((Math.random() * 0xffffffff) >>> 0)), 'rust');
       this.npcDisp[f.id] = Math.max(-40, (this.npcDisp[f.id] || 0) - 3);
@@ -521,6 +533,9 @@ class Game {
     this.epic = d.epic || null;
     this.nameOverrides = d.nameOverrides || {};
     this.routesCut = d.routesCut || {};
+    this.reconcileMarkerNames();
+    this.stillStates = d.stillStates || {};
+    this.foundedStills = d.foundedStills || {};
     this.deadNpcIds = d.deadNpcIds || [];
     this.destroyedNests = d.destroyedNests || {};
     this.histories = d.histories || {};
@@ -1126,6 +1141,36 @@ class Game {
       this.collectLoot(loot, srand, 'camp stash shared');
       return;
     }
+    // a dry well in the waste: light a hearth, found a still
+    const dry = this.stills.dryNear(this.player.pos, 4);
+    if (dry && !ent) {
+      const mats = this.inventory.mats;
+      if ((mats.scrap || 0) < 8 || (mats.alloy || 0) < 2 || (mats.salt || 0) < 2 || (mats.cell || 0) < 1) {
+        this.ui.toast('the well could live again — 8 ▤ · 2 ▣ · 2 ❄ · 1 ▮ to restore it');
+        return;
+      }
+      mats.scrap -= 8; mats.alloy -= 2; mats.salt -= 2; mats.cell -= 1;
+      this.foundedStills[dry.key] = { t: this.worldT };
+      this.stillStates[dry.key] = { stage: -1, lastAssess: this.worldT, graceUntil: this.worldT + 6 };
+      this.stills.cells.delete(dry.key);
+      const [sx, sz] = dry.key.split(',').map(Number);
+      const info = this.stills.infoAt(sx, sz);
+      if (info) {
+        this.appendHistory(info.key, `founded on day ${1 + Math.floor(this.worldT)} by a wanderer who found a dry well and gave it back its voice. the first lamp was theirs.`);
+        this.journal.push({
+          type: 'lore', cat: 'event', title: `A HEARTH LIT — ${info.name.toUpperCase()}`,
+          body: `you restored the dry well on day ${1 + Math.floor(this.worldT)}. the desert will name the rest: word travels, and people follow water. this place is yours in the way that matters — first.`,
+        });
+        this.world.markDiscovered({ key: 'still:' + info.key, name: info.name, kind: 'still', x: info.x, z: info.z });
+        this.changeRep(info, 15);
+        this.audio.play('bell');
+        this.vfx.rise(this.player.pos, { color: 0x6fe8d0, r: 2.6 });
+        this.ui.toast(`THE HEARTH IS LIT — ${info.name.toUpperCase()}`, 'good');
+        this.world.refreshRoads(info.x, info.z, 7000); // new roads press into the sand
+        saveGame(this);
+      }
+      return;
+    }
     const well = this.stills.wellNear(this.player.pos, 4.5);
     if (well && !ent) { this.openWell(well); return; }
     // the anchor's settlement directory: loneliness becomes a choice
@@ -1182,6 +1227,7 @@ class Game {
         body: `${doc.body}<br><i style="color:var(--amber-dim)">recovered in ${doc.region} · day ${day}</i>`,
       });
       this.inventory.mats.salt = (this.inventory.mats.salt || 0) + (rand.chance(0.4) ? 1 : 0);
+      this.audio.play('pickup'); // a document is a find, and finds have a sound
       this.ui.toast(`${doc.title} ABSORBED — logged to journal`, 'good');
       // testimony is evidence: a named, undiscovered place gets marked
       if (doc.lead && this.world.markDiscovered({ ...doc.lead, rumored: true })) {
@@ -1431,6 +1477,67 @@ class Game {
     }
   }
 
+  // DYNAMIC STILLS. A settlement's fortunes derive from the world it sits
+  // in — open roads feed it, cut roads starve it, nests press on it, its
+  // dead diminish it, your deeds steady it — plus a seeded temperamental
+  // drift (some places were always going to fade). Nothing is simulated
+  // offstage: fortunes are ASSESSED when you arrive, one judgment per two
+  // world-days elapsed (capped at two — enough to come home to a change).
+  stillVitality(info) {
+    const routes = this.caravans.routesNear(info.x, info.z)
+      .filter(r => r.a.key === info.key || r.b.key === info.key);
+    const open = routes.filter(r => !((this.routesCut[r.key] || 0) > this.worldT)).length;
+    let v = open * 1.6 - (routes.length - open) * 2.2;
+    v -= this.nests.nestsNear(info.x, info.z, 3500).filter(n => !this.destroyedNests[n.key]).length * 2;
+    v -= this.deadNpcIds.filter(id => id.startsWith('npc:' + info.key + ':')).length * 1.4;
+    v += (this.revived[info.key] || 0) * 1;
+    v += Math.max(-1.5, Math.min(2, (this.stillRep[info.key] || 0) * 0.06));
+    if (this.fundedTurrets[info.key]) v += 1;
+    v += ((hash2(this.seed, hashString(info.key) | 0, 811) % 5) - 2) * 0.7;
+    // founder's grace: hope carries the first days — a lit hearth always
+    // takes root. Whether it SURVIVES depends on the world you lit it in.
+    const st = this.stillStates[info.key];
+    if (st && st.graceUntil && this.worldT < st.graceUntil) v = Math.max(v, 3.2);
+    return v;
+  }
+
+  assessStill(info) {
+    const st = this.stillStates[info.key]
+      || (this.stillStates[info.key] = { stage: 0, lastAssess: this.worldT });
+    let steps = Math.min(2, Math.floor((this.worldT - st.lastAssess) / 2));
+    const before = st.stage;
+    while (steps-- > 0) {
+      st.lastAssess = this.worldT;
+      const v = this.stillVitality(info);
+      if (v >= 3 && st.stage < 1) st.stage++;
+      else if (v <= -3 && st.stage > -2) st.stage--;
+    }
+    info.stage = st.stage;
+    if (st.stage !== before) {
+      const grew = st.stage > before;
+      const day = 1 + Math.floor(this.worldT);
+      const line = grew
+        ? (st.stage >= 1
+          ? `by day ${day} the good years showed: new roofs rising, more names at the well, the roads ringing in.`
+          : `by day ${day} the still had begun to mend — lamps relit, thresholds swept, the boards coming off the doors.`)
+        : (st.stage <= -2
+          ? `by day ${day} the last of them had gone. the well was capped, the wall left to the wind. the names stay cut in the rim.`
+          : `by day ${day} the lean years showed: doors boarded, lamps dark, sand taking the thresholds back.`);
+      this.appendHistory(info.key, line);
+      this.journal.push({
+        type: 'lore', cat: 'event',
+        title: grew ? `${info.name.toUpperCase()} GROWS` : `${info.name.toUpperCase()} FADES`,
+        body: line,
+      });
+      this.audio.play('bell');
+      this.ui.toast(grew
+        ? `${info.name.toUpperCase()} HAS GROWN since you last looked`
+        : st.stage <= -2
+          ? `${info.name.toUpperCase()} STANDS ABANDONED`
+          : `${info.name.toUpperCase()} IS FADING — doors boarded, lamps dark`, grew ? 'good' : 'rust');
+    }
+  }
+
   // the living economy, lite: what a still can get depends on which roads
   // still ring with bells. Each temperament exports what it lives by; a
   // still's price for a material falls with every uncut route to a producer.
@@ -1458,7 +1565,8 @@ class Game {
       mul[mat] = Math.min(1.5, Math.max(0.8, 1.32 - 0.18 * sources[mat]));
       sum += mul[mat]; n++;
     }
-    const moodVal = Math.min(1.35, Math.max(0.85, sum / n));
+    const stg = (this.stillStates[still.key] || {}).stage || 0;
+    const moodVal = Math.min(1.4, Math.max(0.85, (sum / n) * (stg < 0 ? 1.08 : stg > 0 ? 0.96 : 1)));
     const word = moodVal > 1.24 ? 'starved' : moodVal > 1.12 ? 'lean' : moodVal < 0.98 ? 'flush' : 'steady';
     return { mul, moodVal, word, cut: routes.length - open.length, routes: routes.length };
   }
@@ -1471,6 +1579,23 @@ class Game {
     this.audio.play('talk');
     this.ui.toggle('dialogue');
     this.renderDlg();
+  }
+
+  // markers keep the name they had at discovery; generator pool changes
+  // (the 7.2 drift) can strand old labels. The LIVE name wins on the map —
+  // journals and histories keep their old spellings, as documents should.
+  reconcileMarkerNames() {
+    for (const mk of this.world.discovered) {
+      if (mk.kind === 'still' && typeof mk.key === 'string' && mk.key.startsWith('still:')) {
+        const [sx, sz] = mk.key.slice(6).split(',').map(Number);
+        const info = Number.isFinite(sx) && this.stills.infoAt(sx, sz);
+        if (info && info.name && info.name !== mk.name) mk.name = info.name;
+      } else if (typeof mk.key === 'string' && /^-?\d+,-?\d+$/.test(mk.key) && ['ring', 'colossus', 'dish', 'spire'].includes(mk.kind)) {
+        const [mx, mz] = mk.key.split(',').map(Number);
+        const mi = this.world.megaInfo(mx, mz);
+        if (mi && mi.name !== mk.name) mk.name = mi.name;
+      }
+    }
   }
 
   // some fell before the well kept its ledger (pre-7.1 saves): their ids are
@@ -1533,7 +1658,11 @@ class Game {
     };
     this.dlg = { npc: pseudo, view: 'well', lines: [], rand: new Rand((Math.random() * 0xffffffff) >>> 0) };
     this.topicsSys.openContext(pseudo);
-    this.dlg.lines.push({ text: this.dlg.rand.pick(WELL_FLAVOR[still.temperament]) });
+    this.dlg.lines.push({
+      text: (this.stillStates[still.key] || {}).stage <= -2
+        ? 'the wind over the mouth of the well makes a sound like a name being started and not finished.'
+        : this.dlg.rand.pick(WELL_FLAVOR[still.temperament]),
+    });
     this.ui.toggle('dialogue');
     this.renderDlg();
   }
@@ -1574,6 +1703,17 @@ class Game {
     const scrap = mats.scrap || 0;
     const opts = [];
     if (d.view === 'well') {
+      // an abandoned well serves no one — but the rim still keeps its names
+      if ((this.stillStates[npc.still.key] || {}).stage <= -2) {
+        opts.push({ header: 'the well is capped. the settlement is gone; the rim still keeps its names.' });
+        opts.push({ id: 'svc:memorial', label: '◐ read the names cut into the well-rim' });
+        opts.push({
+          id: 'svc:rekindle', label: '❋ rekindle the hearth — pry the cap, sweep the yard (5 ▤ · 1 ▣ · 2 ❄)',
+          disabled: (mats.scrap || 0) < 5 || (mats.alloy || 0) < 1 || (mats.salt || 0) < 2,
+        });
+        opts.push({ id: 'leave', label: 'step back from the well', cls: 'leave' });
+        return opts;
+      }
       const p = this.player, hostile = tier.cls === 'hostile';
       const rep = this.stillRep[npc.still.key] || 0;
       opts.push({ header: `SERVICES — STANDING: ${Math.round(rep)} · YOUR SCRAP: ${scrap} ▤` });
@@ -1835,6 +1975,7 @@ class Game {
         const m = megas[0] || null;
         say(smalltalk(npc, rand, {
           region: this.world.regionName(npc.still.x, npc.still.z),
+          landmark: npc.still.landmark ? npc.still.landmark.name : null,
           mega: m ? { name: m.name, dir: bearingWord(m.x - npc.still.x, m.z - npc.still.z) } : null,
           isNight: Math.sin(this.dayT * Math.PI * 2) < -0.08,
           storm: this.storm,
@@ -2016,6 +2157,26 @@ class Game {
         say(`the well takes the Shaper the way you'd take a lit lamp from a child. the water goes very still. then ${e.npcName} is standing at the rim, dripping starlight that isn't there, and the first thing they say is your designation, correctly, softly, like a door unlocking.`);
         this.ui.toast(`${e.npcName.toUpperCase()} WALKS AGAIN — WHOLE`, 'good');
         saveGame(this);
+      } else if (id === 'svc:rekindle') {
+        if ((mats.scrap || 0) < 5 || (mats.alloy || 0) < 1 || (mats.salt || 0) < 2) return;
+        mats.scrap -= 5; mats.alloy -= 1; mats.salt -= 2;
+        const st = this.stillStates[npc.still.key] || (this.stillStates[npc.still.key] = { stage: -2, lastAssess: this.worldT });
+        st.stage = -1;
+        st.lastAssess = this.worldT;
+        st.graceUntil = this.worldT + 6;
+        this.appendHistory(npc.still.key, `on day ${1 + Math.floor(this.worldT)} a wanderer pried the cap from the well and swept the yard. by dusk there was a lamp lit. the desert sends as well as takes.`);
+        this.journal.push({
+          type: 'lore', cat: 'event', title: `${npc.still.name.toUpperCase()} REKINDLED`,
+          body: `you gave the well back its voice, day ${1 + Math.floor(this.worldT)}. word will travel. people will come.`,
+        });
+        this.changeRep(npc.still, 10);
+        this.stills.reload(npc.still.key);
+        this.audio.play('bell');
+        this.vfx.rise(this.player.pos, { color: 0x6fe8d0, r: 2.4 });
+        this.ui.toast(`${npc.still.name.toUpperCase()} REKINDLED — word will travel`, 'good');
+        saveGame(this);
+        this.ui.closePanel(); this.dlg = null;
+        return;
       } else if (id === 'svc:bind') {
         if ((mats.scrap || 0) < 2 || (this.respawnPt && this.respawnPt.stillKey === npc.still.key)) return;
         mats.scrap -= 2;
@@ -2343,7 +2504,7 @@ class Game {
         (pos) => this.vfx.spark(pos, { color: 0xbbb09a, size: 0.3 }),
         allies);
       this.enemies.onHitPlayer = (dealt) => { if (dealt > 0) { this.shakeT = 0.3; this.uiHurt(dealt); } };
-      this.stills.update(dt, p, isNight, this.enemies);
+      this.stills.update(dt, p, isNight, this.enemies, this.dayT);
       this.tickChains();
       // a still that mistrusts you says so at the gate
       for (const st of fieldStills) {
@@ -2476,6 +2637,8 @@ class Game {
           : `<b>[E]</b> DORMANT ANCHOR — restore (4 ▤ · 1 ▮)`);
       } else if (nearObelisk && !ent && !this.directoryUsed) {
         this.ui.showInteract(`<b>[E]</b> QUERY ANCHOR DIRECTORY — nearest settlement`);
+      } else if (!ent && this.stills.dryNear(p.pos, 4)) {
+        this.ui.showInteract(`<b>[E]</b> A DRY WELL — restore it, and found a hearth (8 ▤ · 2 ▣ · 2 ❄ · 1 ▮)`);
       } else if (well && !ent) {
         this.ui.showInteract(`<b>[E]</b> THE WELL — rest · repair${well.temperament === 'monastic' ? ' · scrub the Rust' : well.temperament === 'ferrocult' ? ' · harvest the bloom' : ''}`);
       } else if (ent) {

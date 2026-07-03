@@ -67,6 +67,8 @@ export function saveGame(g) {
       epic: g.epic,
       nameOverrides: g.nameOverrides,
       routesCut: g.routesCut,
+      stillStates: g.stillStates,
+      foundedStills: g.foundedStills,
       deadNpcIds: g.deadNpcIds,
       destroyedNests: g.destroyedNests,
       histories: g.histories,

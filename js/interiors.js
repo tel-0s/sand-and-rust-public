@@ -346,9 +346,11 @@ export class InteriorSystem {
       const junk = rng.int(0, room.w > 15 ? 4 : 2);
       for (let j = 0; j < junk; j++) {
         const jx = rng.range(room.x0 + 2.6, room.x1 - 2.6), jz = rng.range(room.z0 + 2.6, room.z1 - 2.6);
-        const jw = rng.range(1.2, 4), jh = rng.range(0.8, 2.6);
-        gb.addBox(jx, floorAbs + jh / 2, jz, jw, jh, rng.range(1.2, 4), DEBRIS_C, rng.range(0, 3));
-        cols.push(makeBox(jx, jz, jw / 2, jw / 2, 0, floorAbs + jh, true));
+        const jw = rng.range(1.2, 4), jh = rng.range(0.8, 2.6), jd = rng.range(1.2, 4);
+        const jrot = rng.range(0, 3);
+        gb.addBox(jx, floorAbs + jh / 2, jz, jw, jh, jd, DEBRIS_C, jrot);
+        // the collider wears the same rotation and depth as the box it guards
+        cols.push(makeBox(jx, jz, jw / 2, jd / 2, jrot, floorAbs + jh, true));
       }
       // grand halls: columns to the ceiling, dead machinery of unknown purpose,
       // gantries overhead — vast, and furnished by whatever worked here once
@@ -364,8 +366,9 @@ export class InteriorSystem {
         for (let k = 0; k < nm; k++) {
           const px = rng.range(room.x0 + 4, room.x1 - 4), pz = rng.range(room.z0 + 4, room.z1 - 4);
           const mw = rng.range(3, 8), mh = rng.range(2.5, room.h * 0.5), md = rng.range(3, 8);
-          gb.addBox(px, floorAbs + mh / 2, pz, mw, mh, md, DEBRIS_C, rng.range(0, 3));
-          cols.push(makeBox(px, pz, mw / 2, md / 2, 0, floorAbs + mh, true));
+          const mrot = rng.range(0, 3);
+          gb.addBox(px, floorAbs + mh / 2, pz, mw, mh, md, DEBRIS_C, mrot);
+          cols.push(makeBox(px, pz, mw / 2, md / 2, mrot, floorAbs + mh, true));
         }
         for (let k = 0; k < 3; k++) {
           const gy = floorAbs + room.h * rng.range(0.5, 0.72);
