@@ -477,7 +477,10 @@ export class InteriorSystem {
       outsidePos: { x: player.pos.x, y: player.pos.y, z: player.pos.z },
     };
     const entry = built.rooms[0];
-    player.pos.set(entry.cx, built.baseY + 0.1, entry.cz);
+    // stand ON the floor for every gait: pos.y is baseY above the ground
+    // (tracked/hover carry high hulls — placing them at floor+0.1 put their
+    // computed feet BELOW the slab, so supportY rejected it and they fell)
+    player.pos.set(entry.cx, built.baseY + (player.baseY || 0) + 0.05, entry.cz);
     player.vel.set(0, 0, 0);
     player.grounded = true;
     return this.active;

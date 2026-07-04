@@ -189,6 +189,21 @@ class Game {
     // (created before freshStart so backgrounds can spawn you among people)
     this.stills = new StillManager(this.scene, this.world, {
       assess: (info) => this.assessStill(info),
+      // unfinished business holds a soul in place: contract givers, step
+      // targets, and epic keepers stay on the roster even when the lean
+      // years thin it — nobody walks out on the player mid-contract
+      mustKeep: (info) => {
+        const out = new Set();
+        const pre = 'npc:' + info.key + ':';
+        const idx = (id) => { const n = parseInt(id.slice(pre.length), 10); if (!isNaN(n)) out.add(n); };
+        for (const c of this.chains) {
+          if (c.done) continue;
+          if (c.giverId && c.giverId.startsWith(pre)) idx(c.giverId);
+          c.steps.forEach((st, i) => { if (i >= c.current && st.npcId && st.npcId.startsWith(pre)) idx(st.npcId); });
+        }
+        if (this.epic && this.epic.npcId && this.epic.npcId.startsWith(pre)) idx(this.epic.npcId);
+        return out;
+      },
       isFounded: (key) => this.foundedStills[key],
       onChatter: (npc) => {
         if (Math.hypot(npc.pos.x - this.player.pos.x, npc.pos.z - this.player.pos.z) < 28) {
@@ -253,6 +268,7 @@ class Game {
     // the roads: caravans walking real routes between neighbor stills
     this.caravans = new CaravanManager(this.scene, this.world, this.stills, {
       isCut: (key) => (this.routesCut[key] || 0) > this.worldT,
+      stageOf: (key) => (this.stillStates[key] ? this.stillStates[key].stage : 0),
       onSighted: (c) => {
         this.audio.play('bell');
         this.ui.toast(`BELLS ON ${c.pseudoStill.name.toUpperCase()}`, 'good');
@@ -1001,6 +1017,9 @@ class Game {
       const mother = this.enemies.spawnAt('conceptory', mx, mz, {
         tierMult: baseTier * (epicHere ? 1.25 : 1.1),
         name: epicHere ? 'the Conceptory Mother' : 'a Conceptory Mother',
+        // her armament is part of the place: the same Mother keeps the same
+        // weapon every time you walk down to argue with her
+        armSalt: (hash2(this.seed, hashString(mega.key), 4111) >>> 0),
       });
       mother.pos.y = a.baseY + dr.floorY;
       mother.heading = Math.atan2(-ox, -oz); // facing the door you'll come through
@@ -1504,6 +1523,10 @@ class Game {
   assessStill(info) {
     const st = this.stillStates[info.key]
       || (this.stillStates[info.key] = { stage: 0, lastAssess: this.worldT });
+    // a reload triggered by mercy (revival, rekindle) is not a visit — the
+    // stage applies, but no judgment falls. "you brought them back" should
+    // never be answered, in the same breath, with "and yet it fades."
+    if (this._skipJudgment) { info.stage = st.stage; return; }
     let steps = Math.min(2, Math.floor((this.worldT - st.lastAssess) / 2));
     const before = st.stage;
     while (steps-- > 0) {
@@ -1637,7 +1660,10 @@ class Game {
       }
     }
     if (corrected) {
+      // bookkeeping is not a visit: correct the ledger without judgment
+      this._skipJudgment = true;
       this.stills.reload(still.key); // the living straighten out immediately
+      this._skipJudgment = false;
       if (!this._ledgerToldYou) {
         this._ledgerToldYou = true;
         this.audio.play('bell');
@@ -1979,6 +2005,7 @@ class Game {
           mega: m ? { name: m.name, dir: bearingWord(m.x - npc.still.x, m.z - npc.still.z) } : null,
           isNight: Math.sin(this.dayT * Math.PI * 2) < -0.08,
           storm: this.storm,
+          stage: npc.still.stage || 0,
         }));
       }
       this.renderDlg(); return;
@@ -2077,7 +2104,7 @@ class Game {
         this.deadNpcIds = this.deadNpcIds.filter(x => x !== m.id);
         m.revived = true;
         this.revived[npc.still.key] = (this.revived[npc.still.key] || 0) + 1;
-        this.stills.reload(npc.still.key);
+        this._skipJudgment = true; this.stills.reload(npc.still.key); this._skipJudgment = false;
         this.appendHistory(npc.still.key, `${m.name} was recommissioned from the well's memory on day ${1 + Math.floor(this.worldT)}, at a wanderer's cost. the name on the rim is ringed, not struck.`);
         this.changeRep(npc.still, 4);
         this.npcDisp[m.id] = Math.max(-40, Math.min(40, (this.npcDisp[m.id] || 0) + 6));
@@ -2140,7 +2167,7 @@ class Game {
         this.deadNpcIds = this.deadNpcIds.filter(x => x !== e.npcId);
         const mem = (this.memorials[npc.still.key] || []).find(mm => mm.id === e.npcId);
         if (mem) mem.revived = true;
-        this.stills.reload(npc.still.key);
+        this._skipJudgment = true; this.stills.reload(npc.still.key); this._skipJudgment = false;
         this.appendHistory(npc.still.key, `on day ${1 + Math.floor(this.worldT)}, a wanderer carried a Neuromanifold Shaper up out of ${e.megaName} and gave it to the well, and the well gave back ${e.npcName} — all of them, down to the weave. the Shaper sang once and went still. nobody here will say the word miracle. everybody here means it.`);
         this.changeRep(npc.still, 8);
         this.npcDisp[e.npcId] = 40; // they remember everything, including this
@@ -2170,7 +2197,7 @@ class Game {
           body: `you gave the well back its voice, day ${1 + Math.floor(this.worldT)}. word will travel. people will come.`,
         });
         this.changeRep(npc.still, 10);
-        this.stills.reload(npc.still.key);
+        this._skipJudgment = true; this.stills.reload(npc.still.key); this._skipJudgment = false;
         this.audio.play('bell');
         this.vfx.rise(this.player.pos, { color: 0x6fe8d0, r: 2.4 });
         this.ui.toast(`${npc.still.name.toUpperCase()} REKINDLED — word will travel`, 'good');
@@ -2504,6 +2531,13 @@ class Game {
         (pos) => this.vfx.spark(pos, { color: 0xbbb09a, size: 0.3 }),
         allies);
       this.enemies.onHitPlayer = (dealt) => { if (dealt > 0) { this.shakeT = 0.3; this.uiHurt(dealt); } };
+      this.enemies.onSegmentBroke = (e, seg) => {
+        this.audio.play('boom');
+        this.vfx.spark(seg.pos.clone().setY(seg.pos.y + 1), { color: 0xffb347, size: 0.8 });
+        const n = 1 + (Math.random() < 0.5 ? 1 : 0);
+        this.inventory.mats.scrap = (this.inventory.mats.scrap || 0) + n;
+        this.ui.toast(`SEGMENT SEVERED — the body shortens · +${n} ▤`, 'good');
+      };
       this.stills.update(dt, p, isNight, this.enemies, this.dayT);
       this.tickChains();
       // a still that mistrusts you says so at the gate
@@ -2527,6 +2561,17 @@ class Game {
         }
       }
       if (p.hull <= 0) this.die();
+    }
+    if (this.dead || paused) {
+      // the world holds its breath: locomotion layers ease out instead of
+      // freezing mid-clank (gains only move when update runs)
+      this.audio.update(dt, {
+        storm: this.storm, corruption: p.corruption, inField: true,
+        moving: false, sprinting: false, gait: p.stats.gait, speedFrac: 0,
+        distMoved: 0, grounded: true, biome: this.biomeId,
+        interior: !!this.interiors.active,
+        windMod: 0.5 + 0.5 * this.windNoise.noise(this.worldT * 2.7, 5.5),
+      });
     }
 
     // camera orbit + terrain avoidance
@@ -2595,7 +2640,8 @@ class Game {
       const el = document.getElementById('target-info');
       if (te) {
         const worn = (te.loadout || []).map(p => `${p.tierName} ${p.defId.replace(/_/g, ' ')}${p.rusted ? ' ❂' : ''}`).join(' · ');
-        el.innerHTML = `${te.name}${te.infected ? ' <span style="color:var(--rust-bright)">[INFECTED]</span>' : ''}${worn ? `<br><span style="color:var(--amber-dim)">${worn}</span>` : ''}`;
+        const line = te.form && te.lineage ? ` · ${te.lineage.name}` : '';
+        el.innerHTML = `${te.name}${te.infected ? ' <span style="color:var(--rust-bright)">[INFECTED]</span>' : ''}${worn || line ? `<br><span style="color:var(--amber-dim)">${worn}${line}</span>` : ''}`;
         el.classList.remove('hidden');
       } else el.classList.add('hidden');
     }

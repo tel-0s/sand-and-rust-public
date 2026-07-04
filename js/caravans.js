@@ -11,6 +11,7 @@ import { hash2, hashString, randFromHash } from './rng.js';
 import { Names } from './grammar.js';
 import { buildResidentMesh } from './stills.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
+import { sampleForm, lineageAt } from './frames.js';
 import { QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 
 const ROUTE_R = 6500;    // how far a still's trade reaches (matches gossip)
@@ -59,16 +60,44 @@ class Beastbot {
   constructor(scene, world, rng, slot) {
     this.world = world;
     this.slot = slot;
-    this.hp = 300; this.maxHp = 300;
+    this.hp = 480; this.maxHp = 480; // a wall that walks
+    this.dmg = 7;                     // and barely bites — but oh, the shove
+    this.atkT = 0; this.flashT = 0;
     this.animT = rng.range(0, 9);
     this.mesh = buildBeastbot(rng);
     this.pos = new THREE.Vector3();
     this.yaw = 0;
     scene.add(this.mesh);
   }
-  damage(n) { this.hp -= n; return n; }
-  update(dt, tx, tz, moving) {
+  damage(n) { this.hp -= n; this.flashT = 0.15; return n; }
+  update(dt, tx, tz, moving, enemies) {
     this.animT += dt;
+    this.atkT = Math.max(0, this.atkT - dt);
+    this.flashT = Math.max(0, this.flashT - dt);
+    // a threatened hauler lowers its head and shoves: low damage, huge
+    // knockback, and 480 points of patience soaking hits off the crew
+    if (enemies) {
+      let foe = null, fd = 13;
+      for (const e of enemies.enemies) {
+        const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
+        if (d < fd) { fd = d; foe = e; }
+      }
+      if (foe) {
+        const dx = foe.pos.x - this.pos.x, dz = foe.pos.z - this.pos.z;
+        const d = Math.hypot(dx, dz) || 1;
+        this.yaw += (Math.atan2(dx, dz) - this.yaw) * Math.min(1, dt * 3);
+        if (d > 2.6) { this.pos.x += (dx / d) * 3.2 * dt; this.pos.z += (dz / d) * 3.2 * dt; }
+        else if (this.atkT <= 0) { this.atkT = 2.0; foe.hurt(this.dmg, (dx / d) * 11, (dz / d) * 11); }
+        this.world.collide(this.pos, 0.9, this.pos.y);
+        this.pos.y = this.world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.1);
+        this.mesh.position.copy(this.pos);
+        this.mesh.rotation.y = this.yaw;
+        this.mesh.userData.legs.forEach((leg, i) =>
+          leg.rotation.x = Math.sin(this.animT * 4.2 + (i % 2 ? Math.PI : 0)) * 0.42);
+        this.mesh.traverse(o => { if (o.material && o.material.emissive) o.material.emissive.setHex(this.flashT > 0 ? 0x884433 : 0x000000); });
+        return;
+      }
+    }
     const bx = this.pos.x, bz = this.pos.z;
     const dx = tx - this.pos.x, dz = tz - this.pos.z;
     const d = Math.hypot(dx, dz);
@@ -90,8 +119,10 @@ class Beastbot {
     this.world.collide(this.pos, 0.9, this.pos.y);
     if (wanted > 0.02) {
       const movedD = Math.hypot(this.pos.x - bx, this.pos.z - bz);
-      if (movedD < wanted * 0.3) this.stuckT = (this.stuckT || 0) + dt;
-      else { this.stuckT = 0; this.detour = 0; }
+      if (movedD < wanted * 0.3) {
+        this.stuckT = (this.stuckT || 0) + dt;
+        if (this.stuckT > 1.4) { this.detour = -(this.detour || 1); this.stuckT = 0.5; } // try the other way around
+      } else { this.stuckT = 0; this.detour = 0; }
     }
     this.pos.y = this.world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.1);
     this.mesh.position.copy(this.pos);
@@ -99,6 +130,7 @@ class Beastbot {
     const stride = (moving || d > 0.6) ? 1 : 0.12;
     this.mesh.userData.legs.forEach((leg, i) =>
       leg.rotation.x = Math.sin(this.animT * 4.2 + (i % 2 ? Math.PI : 0)) * 0.42 * stride);
+    this.mesh.traverse(o => { if (o.material && o.material.emissive) o.material.emissive.setHex(this.flashT > 0 ? 0x884433 : 0x000000); });
   }
   dispose(scene) { scene.remove(this.mesh); }
 }
@@ -117,22 +149,32 @@ class Caravaneer {
     this.trader = idx === 0 ? true : rng.chance(0.5);
     this.recruitable = false;       // they have a contract already
     this.quirk = { address: rng.pick(QUIRK_ADDRESS), tag: rng.pick(QUIRK_TAG), tagChance: rng.range(0.18, 0.42) };
-    this.origin = rng.chance(0.5) ? caravan.route.a.name : caravan.route.b.name;
+    const home = rng.chance(0.5) ? caravan.route.a : caravan.route.b; // one draw, as before
+    this.origin = home.name;
     this.opinionOf = null;
     this.still = caravan.pseudoStill;
     this.slot = idx * 3.4;
     const tier = 1 + Math.min(1.5, Math.hypot(caravan.pseudoStill.x, caravan.pseudoStill.z) / 2000);
-    this.maxHp = Math.round(90 * tier);
-    this.dmg = 10 * tier;
-    this.loadout = rollFolkLoadout(rng, tier);
+    this.maxHp = Math.round(115 * tier); // the road doesn't hire the fragile
+    this.dmg = 11 * tier;
+    // signing bonus: real plate — and the wealth of home shows on the road:
+    // crews out of a thriving still wear it, crews out of a fading one don't
+    const homeStage = caravan.stageOf ? (caravan.stageOf(home.key) || 0) : 0;
+    this.loadout = rollFolkLoadout(rng, tier + 0.9, homeStage);
     for (const p of this.loadout) {
       this.maxHp += Math.round((p.stats.hull || 0) * 0.5 + (p.stats.armor || 0));
       if (p.slot === 'ARMS') this.dmg += (p.stats.damage || 0) * 0.3;
     }
     this.hp = this.maxHp;
     this.atkT = 0; this.flashT = 0; this.animT = rng.range(0, 9);
-    this.mesh = buildResidentMesh(this.temperament, true);
-    attachGreebles(this.mesh, this.loadout, 0.8);
+    const frameRoll = hash2(world.seed, caravan.salt, idx * 13 + 977) % 100;
+    this.bodyFrame = frameRoll < 16 ? 'quad' : 'biped'; // road folk favor legs that haul
+    // machinic DNA: crews carry the body dialect of the still that raised them
+    this.form = sampleForm(hash2(world.seed, caravan.salt, idx * 41 + 5501), {
+      temperament: this.temperament, lineage: lineageAt(world.seed, home.x, home.z), spread: 0.9,
+    });
+    this.mesh = buildResidentMesh(this.temperament, true, this.bodyFrame, this.form);
+    attachGreebles(this.mesh, this.loadout, 0.8, homeStage);
     scene.add(this.mesh);
     this.pos = new THREE.Vector3();
     this.yaw = 0;
@@ -182,8 +224,10 @@ class Caravaneer {
     this.world.collide(this.pos, 0.45, this.pos.y);
     if ((this._wanted || 0) > 0.02) {
       const movedD = Math.hypot(this.pos.x - (this._bx ?? this.pos.x), this.pos.z - (this._bz ?? this.pos.z));
-      if (movedD < this._wanted * 0.3) this.stuckT = (this.stuckT || 0) + dt;
-      else { this.stuckT = 0; this.detour = 0; }
+      if (movedD < this._wanted * 0.3) {
+        this.stuckT = (this.stuckT || 0) + dt;
+        if (this.stuckT > 1.4) { this.detour = -(this.detour || 1); this.stuckT = 0.5; } // try the other way around
+      } else { this.stuckT = 0; this.detour = 0; }
       this._wanted = 0;
     }
     this._bx = this.pos.x; this._bz = this.pos.z;
@@ -231,6 +275,16 @@ export class CaravanManager {
     return [...out.values()];
   }
 
+  // routes run between the EDGES of stills, never through their walls:
+  // clip an endpoint 50m out from the settlement's heart, toward the other
+  // (FIELD_R is 42; the ground-blades stand at 36 — nobody paths into them)
+  static clipToWall(from, toward) {
+    const dx = toward.x - from.x, dz = toward.z - from.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const off = Math.min(50, d * 0.4);
+    return { x: from.x + (dx / d) * off, z: from.z + (dz / d) * off };
+  }
+
   // where the caravan of this route stands at this hour, watched or not
   schedule(route, worldT) {
     const leg = route.legDays || LEG_DAYS;
@@ -241,9 +295,11 @@ export class CaravanManager {
     else if (t < leg + REST_DAYS) { from = route.a; to = route.b; frac = 1; resting = route.b; }
     else if (t < 2 * leg + REST_DAYS) { from = route.b; to = route.a; frac = (t - leg - REST_DAYS) / leg; }
     else { from = route.b; to = route.a; frac = 1; resting = route.a; }
+    const p0 = CaravanManager.clipToWall(from, to);
+    const p1 = CaravanManager.clipToWall(to, from);
     return {
-      x: from.x + (to.x - from.x) * frac,
-      z: from.z + (to.z - from.z) * frac,
+      x: p0.x + (p1.x - p0.x) * frac,
+      z: p0.z + (p1.z - p0.z) * frac,
       from, to, frac, resting,
     };
   }
@@ -257,6 +313,7 @@ export class CaravanManager {
     };
     const caravan = {
       key: route.key, route, pseudoStill, rng,
+      stageOf: (k) => this.hooks.stageOf ? this.hooks.stageOf(k) : 0,
       members: [], beasts: [], fire: null,
       ambushed: false, defendedTold: false,
     };
@@ -285,15 +342,18 @@ export class CaravanManager {
     if (this.loaded.has(key)) return this.loaded.get(key);
     const route = { key: step.routeKey, a: step.from, b: step.to, salt: (hashString(step.routeKey + chainId) | 0) };
     const rng = randFromHash(this.world.seed, route.salt, 977);
+    const s0 = CaravanManager.clipToWall(step.from, step.to);
+    const s1 = CaravanManager.clipToWall(step.to, step.from);
     const pseudoStill = {
       key,
       name: `the ${step.from.name.replace(/^the\s+/i, '')}–${step.to.name.replace(/^the\s+/i, '')} road`,
-      x: step.from.x + (step.to.x - step.from.x) * step.progress,
-      z: step.from.z + (step.to.z - step.from.z) * step.progress,
+      x: s0.x + (s1.x - s0.x) * step.progress,
+      z: s0.z + (s1.z - s0.z) * step.progress,
       temperament: 'mercantile',
     };
     const caravan = {
       key, route, pseudoStill, rng, escort: step, chainId,
+      stageOf: (k) => this.hooks.stageOf ? this.hooks.stageOf(k) : 0,
       members: [], beasts: [], fire: null,
       ambushed: false, defendedTold: false,
     };
@@ -356,13 +416,15 @@ export class CaravanManager {
       if (c.escort) {
         // contract pace: walks day and night, but ONLY with the escort close
         const st = c.escort;
-        const total = Math.hypot(st.to.x - st.from.x, st.to.z - st.from.z) || 1;
+        const e0 = CaravanManager.clipToWall(st.from, st.to);
+        const e1 = CaravanManager.clipToWall(st.to, st.from);
+        const total = Math.hypot(e1.x - e0.x, e1.z - e0.z) || 1;
         const nearPlayer = Math.hypot(c.pseudoStill.x - player.pos.x, c.pseudoStill.z - player.pos.z) < 260;
         const moving = nearPlayer && !c.ambushed && st.progress < 1;
         if (moving) st.progress = Math.min(1, st.progress + (5.6 * dt) / total); // under the crew's stride — nobody straggles
         sched = {
-          x: st.from.x + (st.to.x - st.from.x) * st.progress,
-          z: st.from.z + (st.to.z - st.from.z) * st.progress,
+          x: e0.x + (e1.x - e0.x) * st.progress,
+          z: e0.z + (e1.z - e0.z) * st.progress,
           from: st.from, to: st.to, resting: null,
         };
         // position updates BEFORE the wires: an ambush must spawn where the
@@ -396,10 +458,11 @@ export class CaravanManager {
         m.update(dt, player, enemies, tx, tz);
       }
       for (const b of c.beasts) {
+        if (b.hp <= 0) { if (!b._downTold) { b._downTold = true; b.dispose(this.scene); } continue; }
         const lat = (bi++ % 2) ? -1.4 : 1.4;
         const tx = halted ? b.pos.x : sched.x - Math.sin(dir) * b.slot + Math.cos(dir) * lat;
         const tz = halted ? b.pos.z : sched.z - Math.cos(dir) * b.slot - Math.sin(dir) * lat;
-        b.update(dt, tx, tz, !halted);
+        b.update(dt, tx, tz, !halted, enemies);
       }
       // a night camp keeps a fire
       if (isNight && !c.fire) {
@@ -447,6 +510,10 @@ export class CaravanManager {
     for (const c of this.loaded.values()) {
       for (const m of c.members) {
         if (m.hp > 0 && Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z) < r) out.push(m);
+      }
+      // the haulers stand in the line too — 480 points of walking wall
+      for (const b of c.beasts) {
+        if (b.hp > 0 && Math.hypot(b.pos.x - pos.x, b.pos.z - pos.z) < r) out.push(b);
       }
     }
     return out;

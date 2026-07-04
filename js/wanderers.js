@@ -9,6 +9,7 @@ import { GeoBuilder } from './structures.js';
 import { makeCircle, makeBox } from './collision.js';
 import { QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 import { buildResidentMesh } from './stills.js';
+import { sampleForm, lineageAt } from './frames.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
 
 const CAMP_CELL = 1300;
@@ -47,7 +48,13 @@ export class Wanderer {
     }
     this.hp = this.maxHp;
     this.atkT = 0; this.flashT = 0;
-    this.mesh = buildResidentMesh(this.temperament, true);
+    const frameRoll = hash2(world.seed, camp.salt, idx * 13 + 977) % 100;
+    this.bodyFrame = frameRoll < 14 ? 'quad' : frameRoll < 22 ? 'lowslung' : 'biped';
+    // machinic DNA: a fresh hash stream, the camp's ground for an accent
+    this.form = sampleForm(hash2(world.seed, camp.salt, idx * 41 + 5501), {
+      temperament: this.temperament, lineage: lineageAt(world.seed, camp.x, camp.z), spread: 0.9,
+    });
+    this.mesh = buildResidentMesh(this.temperament, true, this.bodyFrame, this.form);
     attachGreebles(this.mesh, this.loadout, 0.8);
     scene.add(this.mesh);
     const a = rng.range(0, Math.PI * 2);
@@ -310,7 +317,7 @@ export class FollowerSystem {
       still: npc.still, baseDisp: npc.baseDisp, trader: false, recruitable: false,
       isFollower: true, opinionOf: null,
       damage: (n) => { f.hp -= n; f.flashT = 0.15; return n; },
-      mesh: buildResidentMesh(npc.temperament, true),
+      mesh: buildResidentMesh(npc.temperament, true, npc.bodyFrame || 'biped', npc.form || null),
     };
     f.mesh.position.copy(f.pos);
     this.scene.add(f.mesh);

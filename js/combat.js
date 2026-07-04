@@ -45,7 +45,19 @@ export class Projectiles {
         for (const e of enemyMgr.enemies) {
           if (p.hitSet && p.hitSet.has(e)) continue;
           const hitR = p.radius * e.def.scale + 0.4;
-          if (pos.distanceToSquared(e.pos.clone().setY(e.pos.y + e.def.scale)) < hitR * hitR) {
+          let hit = pos.distanceToSquared(e.pos.clone().setY(e.pos.y + e.def.scale)) < hitR * hitR;
+          if (hit) e._lastHitPos = { x: e.pos.x, z: e.pos.z };
+          // a long body can be shot anywhere along it — per-part damage
+          if (!hit && e.segTrail) {
+            for (const seg of e.segTrail) {
+              if (pos.distanceToSquared(seg.pos.clone().setY(seg.pos.y + e.def.scale)) < hitR * hitR) {
+                hit = true;
+                e._lastHitPos = { x: seg.pos.x, z: seg.pos.z };
+                break;
+              }
+            }
+          }
+          if (hit) {
             onEnemyHit(e, p.dmg, pos);
             if (p.hitSet) p.hitSet.add(e); else { dead = true; }
             break;

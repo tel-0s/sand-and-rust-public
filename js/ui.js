@@ -656,7 +656,7 @@ export class UI {
       if (!ch.done && cur && cur.x !== undefined) {
         dist = `<div class="je-dist">▸ ${Math.round(Math.hypot(cur.x - g.player.pos.x, cur.z - g.player.pos.z))} m — ${isTracked ? '◈ ON COMPASS · click to unpin' : 'click to pin to compass'}</div>`;
       }
-      el.innerHTML = `<div class="je-title">${ch.title}${ch.done ? ' — PAID' : ''}</div>
+      el.innerHTML = `<div class="je-title">${ch.title}${ch.done ? (ch.failed ? ' — <span style="color:var(--rust-bright)">FAILED</span>' : ' — PAID') : ''}</div>
         <div class="je-body">for ${ch.giverName}, ${ch.stillName}</div>${steps}${dist}`;
       if (!ch.done) {
         el.style.cursor = 'pointer';

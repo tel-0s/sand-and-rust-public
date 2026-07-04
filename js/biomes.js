@@ -10,7 +10,7 @@ export const BIOMES = [
     colLow: [0.78, 0.58, 0.33], colHigh: [0.92, 0.74, 0.46],
     deco: { rock: 0.06, scrap: 0.04, spire: 0.0, bones: 0.05 },
     wreckDensity: 0.18, shardDensity: 0.05, beaconDensity: 0.05,
-    danger: 0.35, enemyKinds: ['scrabbler', 'dervish'],
+    danger: 0.35, enemyKinds: ['scrabbler', 'dervish', 'strider'],
   },
   {
     id: 'flats', name: 'Scrap Flats',
@@ -19,7 +19,7 @@ export const BIOMES = [
     colLow: [0.62, 0.47, 0.3], colHigh: [0.72, 0.58, 0.4],
     deco: { rock: 0.18, scrap: 0.5, spire: 0.0, bones: 0.1 },
     wreckDensity: 0.65, shardDensity: 0.1, beaconDensity: 0.12,
-    danger: 0.5, enemyKinds: ['scrabbler', 'dervish', 'sentinel'],
+    danger: 0.5, enemyKinds: ['scrabbler', 'dervish', 'sentinel', 'strider'],
   },
   {
     id: 'salt', name: 'Salt Pans',
@@ -38,7 +38,7 @@ export const BIOMES = [
     colLow: [0.36, 0.45, 0.42], colHigh: [0.6, 0.74, 0.66],
     deco: { rock: 0.1, scrap: 0.12, spire: 0.3, bones: 0.04 },
     wreckDensity: 0.3, shardDensity: 0.2, beaconDensity: 0.08,
-    danger: 0.65, enemyKinds: ['dervish', 'sentinel'],
+    danger: 0.65, enemyKinds: ['dervish', 'sentinel', 'spindler'],
   },
   {
     id: 'city', name: 'Buried City',
@@ -47,7 +47,7 @@ export const BIOMES = [
     colLow: [0.55, 0.45, 0.32], colHigh: [0.68, 0.58, 0.44],
     deco: { rock: 0.04, scrap: 0.3, spire: 0.0, bones: 0.03 },
     wreckDensity: 0.45, shardDensity: 0.3, beaconDensity: 0.15,
-    danger: 0.7, enemyKinds: ['scrabbler', 'dervish', 'sentinel'],
+    danger: 0.7, enemyKinds: ['scrabbler', 'dervish', 'sentinel', 'lurcher'],
     city: true,
   },
   {
@@ -57,7 +57,7 @@ export const BIOMES = [
     colLow: [0.45, 0.2, 0.1], colHigh: [0.66, 0.32, 0.15],
     deco: { rock: 0.12, scrap: 0.2, spire: 0.5, bones: 0.12 },
     wreckDensity: 0.35, shardDensity: 0.12, beaconDensity: 0.05,
-    danger: 1.0, enemyKinds: ['rustform', 'dervish', 'sentinel'],
+    danger: 1.0, enemyKinds: ['rustform', 'dervish', 'sentinel', 'lurcher'],
     corrupting: true, // ambient corruption gain
   },
 ];

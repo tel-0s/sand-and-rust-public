@@ -9,6 +9,7 @@ import { makeBox, makeCircle } from './collision.js';
 import { BIOMES, biomeWeights } from './biomes.js';
 import { TEMPERAMENTS, QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
+import { buildForm, sampleForm, lineageAt, applyMods } from './frames.js';
 
 const STILL_CELL = 1900;
 const FIELD_R = 42;            // the still's safe-field radius
@@ -31,12 +32,67 @@ const NPC_HEAD = new THREE.BoxGeometry(0.45, 0.4, 0.45);
 const NPC_LEG = new THREE.BoxGeometry(0.2, 0.7, 0.24);
 const NPC_EYE = new THREE.BoxGeometry(0.28, 0.08, 0.05);
 
-// a friendly chassis, sash-tinted by temperament; pack for the road-folk
-export function buildResidentMesh(temperament, withPack = false) {
+// a friendly chassis, sash-tinted by temperament; pack for the road-folk.
+// form is the soul's machinic DNA, decoded: proportions and modifiers on
+// top of their chosen frame — no form means the neutral body, as ever.
+export function buildResidentMesh(temperament, withPack = false, frame = 'biped', form = null) {
+  // not every soul kept the makers' shape: some walk on four legs now, some
+  // low and wide ("my cousin swapped to tracked legs. we tow him.")
+  if (frame !== 'biped') {
+    const tint0 = new THREE.Color(TEMPERAMENTS[temperament].color);
+    const bodyMat0 = new THREE.MeshLambertMaterial({ color: 0x6e655a });
+    const accentMat0 = new THREE.MeshLambertMaterial({ color: tint0.multiplyScalar(0.55) });
+    const g = buildForm(frame, frame === 'quad' ? 0.78 : 0.9,
+      { body: bodyMat0, dark: new THREE.MeshLambertMaterial({ color: 0x4a4238 }), eye: lampMat },
+      form || undefined);
+    const sash = new THREE.Mesh(new THREE.BoxGeometry(frame === 'quad' ? 1.2 : 1.0, 0.2, 0.5), accentMat0);
+    sash.position.y = (g.userData.mountH || 1.2);
+    g.add(sash);
+    if (withPack) {
+      const pack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 0.4), accentMat0);
+      pack.position.set(0, (g.userData.mountH || 1.2) + 0.35, -0.35);
+      g.add(pack);
+    }
+    return g;
+  }
   const tint = new THREE.Color(TEMPERAMENTS[temperament].color);
   const bodyMat = new THREE.MeshLambertMaterial({ color: 0x6e655a });
   const accentMat = new THREE.MeshLambertMaterial({ color: tint.multiplyScalar(0.55) });
   const g = new THREE.Group();
+  if (form) {
+    // the makers' shape, inflected: the legacy biped generalized so every
+    // soul's proportions carry their DNA (neutral values reduce to the
+    // shared-geometry body below, so nobody re-bodied when this shipped)
+    const { bw, bh, bd, legLen, legThick, head } = form;
+    const legL = 0.7 * legLen, bodyY = legL + 0.45;
+    const headY = bodyY + 0.5 * bh + 0.25;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8 * bw, 1.0 * bh, 0.55 * bd), bodyMat);
+    body.position.y = bodyY; g.add(body);
+    const sash = new THREE.Mesh(new THREE.BoxGeometry(0.86 * bw, 0.22, 0.6 * bd), accentMat);
+    sash.position.y = bodyY + 0.2; g.add(sash);
+    const hd = new THREE.Mesh(new THREE.BoxGeometry(0.45 * head, 0.4 * head, 0.45 * head), bodyMat);
+    hd.position.y = headY; g.add(hd);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.28 * head, 0.08, 0.05), lampMat);
+    eye.position.set(0, headY + 0.03, 0.25 * head); g.add(eye);
+    for (const sx of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2 * legThick, legL, 0.24 * legThick), bodyMat);
+      leg.position.set(sx * 0.22 * bw, legL / 2, 0); g.add(leg);
+    }
+    if (withPack) {
+      const pack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.3), accentMat);
+      pack.position.set(0, bodyY + 0.15, -(0.28 * bd + 0.14)); g.add(pack);
+      const roll = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.2), bodyMat);
+      roll.position.set(0, bodyY + 0.57, -(0.28 * bd + 0.14)); g.add(roll);
+    }
+    if (form.mods && form.mods.length) {
+      applyMods(g, 1, { body: bodyMat, dark: new THREE.MeshLambertMaterial({ color: 0x4a4238 }) }, form, {
+        topY: headY + 0.25 * head, backZ: -0.28 * bd, sideX: 0.4 * bw,
+        shoulderY: bodyY + 0.35 * bh, bodyY, eyeY: headY + 0.03, frontZ: 0.28 * bd,
+      });
+    }
+    g.userData.form = form;
+    return g;
+  }
   const body = new THREE.Mesh(NPC_BODY, bodyMat); body.position.y = 1.15; g.add(body);
   const sash = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.22, 0.6), accentMat); sash.position.y = 1.35; g.add(sash);
   const head = new THREE.Mesh(NPC_HEAD, bodyMat); head.position.y = 1.9; g.add(head);
@@ -73,7 +129,14 @@ export class NPC {
       this.opinionOf = Names.person(world.seed, hash2(world.seed, still.salt, oi));
     } else this.opinionOf = null;
 
-    this.mesh = buildResidentMesh(still.temperament);
+    const frameRoll = hash2(world.seed, still.salt, idx * 13 + 977) % 100;
+    this.bodyFrame = frameRoll < 12 ? 'quad' : frameRoll < 19 ? 'lowslung' : 'biped';
+    // machinic DNA on its own hash stream (no rng draws — the stream is
+    // load-bearing): temperament shapes the drift, the valley lends its accent
+    this.form = sampleForm(hash2(world.seed, still.salt, idx * 41 + 5501), {
+      temperament: still.temperament, lineage: lineageAt(world.seed, still.x, still.z), spread: 0.9,
+    });
+    this.mesh = buildResidentMesh(still.temperament, false, this.bodyFrame, this.form);
     scene.add(this.mesh);
     this.recruitable = true;
     // flesh would call it mortality; they call it warranty.
@@ -81,14 +144,16 @@ export class NPC {
     const tier = 1 + Math.min(1.5, Math.hypot(still.x, still.z) / 2000);
     this.maxHp = Math.round(95 * tier); this.hp = this.maxHp;
     this.dmg = 10 * tier; this.atkT = 0; this.flashT = 0;
-    // of one substance: residents wear real parts too
-    this.loadout = rollFolkLoadout(rng, tier);
+    // of one substance: residents wear real parts too — and the parts wear
+    // the still's fortune (prosperity part-swapping: a stage change re-rolls
+    // gear on the same stream, so the people keep their names and homes)
+    this.loadout = rollFolkLoadout(rng, tier, still.stage || 0);
     for (const p of this.loadout) {
       this.maxHp += Math.round((p.stats.hull || 0) * 0.5 + (p.stats.armor || 0));
       if (p.slot === 'ARMS') this.dmg += (p.stats.damage || 0) * 0.3;
     }
     this.hp = this.maxHp;
-    attachGreebles(this.mesh, this.loadout, 0.8);
+    attachGreebles(this.mesh, this.loadout, 0.8, still.stage || 0);
 
     const a = rng.range(0, Math.PI * 2), r = rng.range(4, 16);
     this.home = { x: still.x + Math.sin(a) * r, z: still.z + Math.cos(a) * r };
@@ -894,7 +959,14 @@ export class StillManager {
     const effResidents = info.stage <= -2 ? 0
       : info.stage === -1 ? Math.max(2, Math.floor(info.residents * 0.6))
       : info.residents + (info.stage >= 1 ? 2 : 0);
-    for (let i = 0; i < effResidents; i++) {
+    // unfinished business outlasts the lean years: souls the game says must
+    // stay (open contracts, epics) spawn even past the trimmed roster. The
+    // loop still constructs every index up to the last one needed, so each
+    // soul's draws land where they always did.
+    const keep = this.hooks.mustKeep ? this.hooks.mustKeep(info) : null;
+    const maxIdx = Math.min(info.residents + 2,
+      Math.max(effResidents, keep && keep.size ? Math.max(...keep) + 1 : 0));
+    for (let i = 0; i < maxIdx; i++) {
       const n = new NPC(this.scene, this.world, info, i, rng, neighbors);
       n.onChatter = this.hooks.onChatter || null;
       // some names are kept against the drift of the pools (legacy revivals)
@@ -904,6 +976,8 @@ export class StillManager {
       // and the dead, the desert keeps
       if ((this.hooks.isRecruited && this.hooks.isRecruited(n.id)) ||
           (this.hooks.isDead && this.hooks.isDead(n.id))) { n.dispose(this.scene); continue; }
+      if (i >= effResidents && !(keep && keep.has(i))) { n.dispose(this.scene); continue; } // left with the lean years
+      n.lingering = i >= effResidents; // stayed behind for you
       npcs.push(n);
     }
     this.world.staticColliders.push(...built.colliders);

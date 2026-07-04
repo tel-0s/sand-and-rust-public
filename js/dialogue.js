@@ -209,6 +209,21 @@ function bearingWord(dx, dz) {
 }
 const MEGA_NOUN = { ring: 'a shattered orbital ring', colossus: 'a fallen colossus', dish: 'a listening array', spire: 'a broken spire' };
 
+// the still's fortune, worn on the body and spoken aloud — prosperity
+// part-swapping made visible in the mouth as well as the plate
+const THRIVING_TALK = [
+  'new plate this season. the roads paid for it — feel the weight of me.',
+  'everyone here is wearing fresh salvage. good years put armor on backs.',
+  'the grafting queue runs a week long now. a fine problem to have.',
+  'you can hear it, can’t you? the whole still hums heavier. that’s tier in the joints.',
+];
+const LEAN_TALK = [
+  'don’t look too hard at my plating. we patch what we can’t replace.',
+  'sold my good arm-mounts a season back. the lean years take from the body first.',
+  'every bolt on me is borrowed. when the roads come back, so will the plate.',
+  'we strip the empty houses for shims now. the desert lends nothing twice.',
+];
+
 export function greeting(npc, tierCls, rand) {
   const pool = GREET[tierCls === 'hostile' ? 'hostile' : tierCls][npc.temperament] || GREET.neutral[npc.temperament];
   return decorate(rand.pick(pool), npc, rand);
@@ -221,6 +236,8 @@ export function smalltalk(npc, rand, ctx) {
   if (ctx.isNight) pool.push(...t.night);
   if (ctx.storm > 0.25) pool.push(...t.storm, ...t.storm);
   if (ctx.landmark) pool.push(...LANDMARK_TALK);
+  if (ctx.stage > 0) pool.push(...THRIVING_TALK, ...THRIVING_TALK);
+  if (ctx.stage < 0) pool.push(...LEAN_TALK, ...LEAN_TALK);
   const bare = (ctx.region || '').replace(/^the\s+/i, '');
   let line = rand.pick(pool).replaceAll('{region}', bare);
   if (ctx.mega) line = line.replaceAll('{megaName}', ctx.mega.name).replaceAll('{megaDir}', ctx.mega.dir);

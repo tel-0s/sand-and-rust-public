@@ -491,6 +491,169 @@ Playtest findings from riding with the caravans:
   the world remembering, not the game pinging. Contract escorts always get
   the full alarm. Nothing about the simulation was faked.
 
+## build 2026.7.34 — every gait stands in the hollow places — ✅ SHIPPED
+
+Tracked/hover chassis fell through megastructure floors on entry: the
+entry placement set pos.y = floor + 0.1 ignoring the chassis' base
+height, so tall hulls (tracked baseY 0.85, hover 1.0) had their computed
+feet below the slab — supportY rejected the floor (top > feet + step-up)
+and they dropped a level, repeatedly. Entry now places every gait
+baseY above the slab. Verified: tracked/hover/biped all land grounded,
+zero drop, through the same door (round50).
+
+## build 2026.7.33 — "The Menagerie" (ARC III, build 5) — ✅ SHIPPED · ARC COMPLETE
+
+The botform sampler — the arc crown. Every frame is now only the NEUTRAL
+POINT of a parameterized space; a 32-bit seed is machinic DNA.
+
+- ✅ **Frames as samples**: buildForm generalizes all five frames over six
+  decoupled axes (body w/h/d, leg length, leg thickness, head) — neutral
+  values reproduce the historical geometry EXACTLY (verified to 1e-6), so
+  nothing that exists was re-bodied. The legacy soul-biped got the same
+  treatment: parameterized, with the shared-geometry body as its neutral.
+- ✅ **Modifiers**: eight bolt-on expressives (antenna, dorsal fin, spines,
+  side pods, extra arms, asymmetric shoulder, tail, brow plate) attached
+  at frame-computed anchors; antennas/arms/tails sway on the gait clock.
+- ✅ **Machinic DNA with contextual priors**: scavvers drift the standard
+  ways (broad, extra arms, packs); brokers go broad and carry things;
+  monks go tall and spare; ferro-cultists come back wrong on purpose
+  (widest axes, spines/asymmetry, 3 mods). Enemies sample at spread 0.55
+  so kind silhouettes stay readable; souls at 0.9; the Mother keeps her
+  gantries bare — her armament is her body language.
+- ✅ **Regional lineages**: every ~2.6 km cell speaks a body dialect — two
+  axes bent a fixed way plus a signature modifier most locals carry, with
+  a name (the Longshank line, the Broadback line...). Machines of a
+  valley share a family resemblance; caravan crews carry the dialect of
+  the still that raised them. The reticle intel names the lineage.
+- ✅ **Stream safety**: DNA rides its own hash stream — zero rng draws
+  added; names, homes, and loadouts verified bit-identical.
+- ✅ Long legs slow the gait cadence: the form shapes the walk.
+
+**ARC III — THE MENAGERIE: COMPLETE.** Frames (b1), the centipede +
+per-part damage (b2), prosperity part-swapping (b3), Mother armaments
+(b4), the botform sampler (b5).
+
+## build 2026.7.32 — "The Menagerie" (ARC III, build 4) — ✅ SHIPPED
+
+Mother armaments: what she wears is how she kills you.
+
+- ✅ **Her armament is her identity**: every Conceptory Mother rolls one
+  real ARMS part (tier 2, tier 3 in the deep tiers), seeded from her
+  megastructure — the same Mother keeps the same weapon every visit. It
+  sits in her loadout, so she DROPS what she wields.
+- ✅ **Claw arms (Shredder Claws / Breaker Fists)**: two long hinged arms
+  with claw prongs, pivoted at the gantry shoulders. Combat is a
+  telegraphed three-beat — arms rise (0.75s, your warning), then slam
+  through, hitting EVERYTHING in the forward arc (±72°, reach +1.2m) for
+  ×1.4 damage and brutal knockback, then a long recovery.
+- ✅ **Shoulder cannon (Bolt Caster / Arc Projector)**: the cannon rides
+  the shoulder-joint where an arm would hang; the off-arm remains, and
+  swats anyone who hugs her. Charge (muzzle glow swells, 0.9s), then a
+  dramatic sustained burst — 12 fast slugs for the bolt caster, 6 heavy
+  fast lances for the arc projector, mild spread, live tracking — then
+  4+ seconds of silence to answer back. Barrel recoils per shot.
+- ✅ Verified: deterministic arm per salt, windup lands no damage, sweep
+  lands, charge glows before the first shot, burst bounded, swat answers,
+  epic pipeline (delve → kill → Shaper → revive) green end to end.
+
+**Next in arc:** the generative botform sampler (b5, arc crown) —
+decoupled axes, machinic DNA with contextual priors, regional lineages.
+
+## build 2026.7.31 — unfinished business outlasts the lean years — ✅ SHIPPED
+
+The Zeb Stillwater fix: a fading still trims its roster, and the trimmed
+souls never spawned — including ones holding the player's open contracts.
+Now contract givers, chain step-targets, and epic keepers stay on the
+roster at ANY stage (even abandoned: the last one, waiting), flagged
+`lingering`. The spawn loop still constructs every index up to the last
+one needed, so every soul's draws land where they always did. Paid
+contracts release them to the lean years like anyone else.
+
+## build 2026.7.30 — "The Menagerie" (ARC III, build 3) — ✅ SHIPPED
+
+Prosperity part-swapping: Arc II's living economy wears itself on Arc
+III's modular bodies. A still's fortune is now legible in the plate of
+its people.
+
+- ✅ **Loadouts keyed to fortune**: rollFolkLoadout gains a stage axis —
+  a thriving still's residents roll a second mount more often and better
+  tiers (tier 3 appears ONLY where prosperity meets the frontier); a
+  fading still's folk strip down to patched single slabs. HP and damage
+  follow through the existing part-stat contributions.
+- ✅ **The swap comes free**: gear rolls on the same seeded stream at
+  constant draw count for every stage and every outcome (the second mount
+  is always rolled, only sometimes kept) — a fortune swing re-rolls the
+  parts without moving one downstream draw. Verified: names, homes, and
+  stage-0 loadouts bit-identical across reloads; gear monotonically
+  better at +1, worse at −1.
+- ✅ **The road carries the wealth**: caravaneers roll their loadout at
+  their ORIGIN still's stage (stageOf hook) — crews out of a thriving
+  town wear it, crews out of a fading one don't.
+- ✅ **Legible at a glance**: greebles take a mood tint — kept metal in
+  the good years, sand-eaten patchwork in the lean ones.
+- ✅ **Spoken aloud**: prosperity smalltalk pools — "new plate this
+  season, the roads paid for it" / "don't look too hard at my plating."
+- Plus the 2026.7.29 QA build: paused audio eases out instead of droning
+  under menus, failed contracts read — FAILED in rust-red, and mercy
+  (revive/rekindle) no longer triggers a fortune judgment in the same
+  breath — the judgment stays pending for the next ordinary visit.
+
+**Next in arc:** Mother armaments reflecting parts (b4), then the
+generative botform sampler (b5, arc crown).
+
+## build 2026.7.28 — "The Menagerie" (ARC III, build 2) — ✅ SHIPPED
+
+The centipede — and per-part damage rides in on its back.
+
+- ✅ **Segments are DNA**: each centipede rolls 5–9 body segments (more in
+  the deep tiers) — the first parameterized axis of the coming botform
+  sampler, exactly as the producer's notes frame it. The hp pool scales
+  with length; the body chain-follows the head over real terrain, legs in
+  a wave, carapace ridges nose to tail.
+- ✅ **Every segment is a target**: projectiles and melee resolve against
+  the nearest body-node — sever a segment (each has its own hp) and it
+  breaks off with a flash and scrap, the body shortens and slows, and the
+  pool takes the trauma. **The head is the mind**: head shots deal 1.5×.
+  Melee got smarter for everyone: the swing now hits the nearest node
+  *within the arc*, so standing between two segments doesn't blind you.
+- ✅ **Rare by design**: the deep desert grows them long — a 5% upgrade
+  roll on far-tier spawns in the dunes and rustlands only. The workbench
+  spawns them on demand for testing.
+
+*Queued as the arc's crown (producer's notes, filed): the generative
+botform sampler — decoupled size axes and modifiers first, then a full
+body-plan space with today's frames as samples; seeds as machinic DNA
+with contextual priors (scavver stills vary conventionally, ferro-cults
+strangely) and **regional lineages** — biome-local body dialects, so far
+travel shows in the silhouettes.*
+
+## build 2026.7.25 — "The Menagerie" (ARC III, build 1) — ✅ SHIPPED
+
+Frames — body typologies as a first-class system (`js/frames.js`). The
+frame sets the silhouette and the gait; the parts set the stats and the
+greebles. One vocabulary for enemies, souls, and haulers alike.
+
+- ✅ **Five frames**: biped (the makers' shape), quad, lowslung, stilt, and
+  colossal — each with a hip-pivoted leg rig and its own gait clock
+  (ponderous colossal strides, scuttling lowslung patter, high stilt
+  steps). Legs swing like limbs now, not like propellers.
+- ✅ **Three new machines to meet**: the *strider* (a pack-hunter on four
+  fast legs — runs you down in the open dunes), the *lurcher* (a low
+  armored dread that shoulders through the buried cities), and the
+  *spindler* (a needle-gun on stilts, patient above the glass). Each with
+  territories, loadout slots, and drops.
+- ✅ **Old kinds re-bodied**: scrabbler, dervish (blades kept), sentinel,
+  and — at last — the Conceptory Mother, who was falling through to the
+  coral-lump branch and is now a true colossal with gantry shoulders,
+  reaching arms, and a rust-glow crown.
+- ✅ **Souls in other chassis**: ~1 in 5 residents, wanderers, and
+  caravaneers walks a quad or lowslung frame now ("my cousin swapped to
+  tracked legs. we tow him."). Hash-picked, deterministic, RNG streams
+  untouched; followers keep their chassis on the road.
+
+**Arc III ahead:** the centipede + per-part damage (b2), prosperity-driven
+NPC part-swapping (b3), Mother armaments + warbot-limb megastructures (b4).
+
 ## build 2026.7.23 — "Stills That Live" (ARC II, build 5) — ✅ SHIPPED · ARC COMPLETE
 
 The closing pass: the roads press into the earth, and no hamlet is anyone
