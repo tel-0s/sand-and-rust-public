@@ -15,7 +15,7 @@ export const DIFFICULTY = {
 };
 
 export const SETTINGS = {
-  audio: { master: 0.5, ambient: 0.7, steps: 1, combat: 1, ui: 1 },
+  audio: { master: 0.5, ambient: 0.7, steps: 1, combat: 1, ui: 1, music: 0.5 },
   video: { renderScale: Math.min(devicePixelRatio || 1, 2), viewDist: 'standard', shake: true, pixelAA: true },
   game: { difficulty: 'survivor', dmgNumbers: true },
 };

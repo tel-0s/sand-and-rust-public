@@ -108,6 +108,7 @@ export function transmit(game, key) {
   g._staticT = 9;
   g._lastTx = { key, t: g.worldT };
   g.ui.txStatic && g.ui.txStatic();
+  g.audio && g.audio.txWhoosh && g.audio.txWhoosh();
   g.ui.toast(`REASSEMBLED AT ${still.name.toUpperCase()} — the line kept ${node.tithe} of you`, 'rust');
   // MEMORY LEAK: the line files old records under your signal, in order
   const li = LEAK_AT.indexOf(g.txCount);

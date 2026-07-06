@@ -182,6 +182,19 @@ export class TopicSystem {
       if (!info || Math.hypot(info.x - at.x, info.z - at.z) > MEGA_KNOW * reach) {
         return { text: decorate(rand.pick(PLACE_UNKNOWN[temp]).replaceAll('{name}', this.labelOf(id)), npc, rand) };
       }
+      // a companion does not RUMOR a place you stood in together — they
+      // remember it, lived chapter first, and nothing needs marking
+      if (npc.isFollower && g.world.discoveredKeys.has(info.key)) {
+        const lived = (g.lived['n:' + npc.name] || []).find(e => e.text.includes(info.name));
+        const line = lived
+          ? `mark it? i was THERE, walker — ${lived.text}, day ${lived.day}. some maps you carry in the plating.`
+          : rand.pick([
+            `${info.name}? we have stood in its shadow, you and i. i do not need a chart for what my feet remember.`,
+            `you are asking ME about ${info.name}? i was beside you. ask me something my answer can surprise you with.`,
+            `${info.name} — i remember the light on it, and how quiet you went. that is my whole report.`,
+          ]);
+        return { text: decorate(line, npc, rand) };
+      }
       const marked = g.world.markDiscovered({ key: info.key, name: info.name, kind: info.type, x: info.x, z: info.z });
       return { text: rumorText(npc, info, at, rand), sys: marked ? '— marked on map [M]' : undefined };
     }

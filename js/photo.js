@@ -26,6 +26,13 @@ export class PhotoMode {
     this._onKeyUp = (e) => { this.keys[e.key.toLowerCase()] = false; };
     this._onMouseMove = (e) => this.mouseMove(e);
     this._onWheel = (e) => { e.preventDefault(); this.setFov(this.state.fov + e.deltaY * 0.03); };
+    // macOS right-drag fires the context menu — swallow it, and let ANY
+    // button drag the view (the trigger is dead in photo mode anyway)
+    this._onCtx = (e) => { e.preventDefault(); };
+    this._onMouseDown = (e) => {
+      if (e.target === this.game.renderer.domElement) { this._dragLook = true; e.preventDefault(); }
+    };
+    this._onMouseUp = () => { this._dragLook = false; };
   }
 
   toggle() { this.active ? this.exit() : this.enter(); }
@@ -44,6 +51,9 @@ export class PhotoMode {
     document.addEventListener('keydown', this._onKeyDown, true);
     document.addEventListener('keyup', this._onKeyUp, true);
     document.addEventListener('mousemove', this._onMouseMove);
+    document.addEventListener('contextmenu', this._onCtx);
+    document.addEventListener('mousedown', this._onMouseDown);
+    document.addEventListener('mouseup', this._onMouseUp);
     g.renderer.domElement.addEventListener('wheel', this._onWheel, { passive: false });
     this.buildPanel();
     this.applyFx();
@@ -70,8 +80,12 @@ export class PhotoMode {
     document.removeEventListener('keydown', this._onKeyDown, true);
     document.removeEventListener('keyup', this._onKeyUp, true);
     document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('contextmenu', this._onCtx);
+    document.removeEventListener('mousedown', this._onMouseDown);
+    document.removeEventListener('mouseup', this._onMouseUp);
     g.renderer.domElement.removeEventListener('wheel', this._onWheel);
     this.keys = {};
+    this._dragLook = false;
   }
 
   keyDown(e) {
@@ -86,8 +100,8 @@ export class PhotoMode {
 
   mouseMove(e) {
     if (!this.active) return;
-    // right-drag (or middle-drag) to look; keeps the cursor free for dials
-    if (!(e.buttons & 6)) return;
+    // any-button drag that STARTED on the viewport looks; dial-drags don't
+    if (!this._dragLook) return;
     this.yaw -= e.movementX * 0.0032;
     this.pitch = Math.min(1.5, Math.max(-1.5, this.pitch - e.movementY * 0.0026));
   }
@@ -225,7 +239,7 @@ export class PhotoMode {
     const p = document.createElement('div');
     p.id = 'photo-panel';
     p.innerHTML = `<div class="ph-title">▣ PHOTO MODE</div>
-      <div class="ph-help">WASD move · Q/E rise & sink · SHIFT fast · right-drag look · wheel zoom · Z/X roll · [F] photograph · [P] leave</div>`;
+      <div class="ph-help">WASD move · Q/E rise & sink · SHIFT fast · drag the view to look · wheel zoom · Z/X roll · [F] photograph · [P] leave</div>`;
     const row = (label, el) => {
       const r = document.createElement('div');
       r.className = 'ph-row';

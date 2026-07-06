@@ -182,6 +182,12 @@ export function initDebug(getGame) {
         if (d < 120 && (!best || d < best.d)) best = { d, n, rec };
       }
     }
+    // the company counts: companions are souls too (playtest catch)
+    for (const f of g().followers.list()) {
+      if (f.hp <= 0) continue;
+      const d = Math.hypot(f.pos.x - pos().x, f.pos.z - pos().z);
+      if (d < 120 && (!best || d < best.d)) best = { d, n: f, rec: null };
+    }
     return best;
   };
   const loadedStill = () => {
@@ -1387,6 +1393,72 @@ export function initDebug(getGame) {
           log(`→ chain accepted: ${pendingChain.title}`);
           pendingChain = null;
         }, 'act');
+      }));
+      c.appendChild(sec('THE RESONANCE', (el) => {
+        const r = row(el);
+        btn(r, 'the ear (live state)', () => {
+          const G = g(), A = G.audio;
+          if (!A.ctx) return log('✗ audio not started — click into the game first');
+          log(`THE EAR\nlistener: ${A.listener ? `${A.listener.x.toFixed(0)},${A.listener.z.toFixed(0)} yaw ${A.listener.yaw.toFixed(2)}` : 'none'}\n`
+            + `nest: ${G._earNest ? `${G._earNest.dist.toFixed(0)}m ${G._earNest.hot ? 'HOT' : 'calm'}` : 'none in 260m'} · yard pop: ${G._earPop || 0}\n`
+            + `brood ${A.broodGain ? A.broodGain.gain.value.toFixed(3) : '-'} · yard ${A.yard ? A.yard.g.gain.value.toFixed(3) : '-'} · hollow ${A.hollow ? A.hollow.g.gain.value.toFixed(3) : '-'} · duck ${A.duckGain ? A.duckGain.gain.value.toFixed(2) : '-'}\n`
+            + `combat heat: ${(G._combatT || 0).toFixed(1)}s · shard ${(G.shard || 0).toFixed(2)}`);
+        });
+        btn(r, 'the motif (this world\u2019s song)', () => {
+          const s = g().score;
+          if (!s) return log('✗ the score wakes with the audio — click into the game first');
+          log(`THE MOTIF — degrees [${s.motif.join(' ')}] · root ${s.rootHz.toFixed(1)} Hz\nphrases played: ${s.phraseN} · next in ${Math.max(0, s.nextIn).toFixed(0)}s (dawn/dusk lean 2.6\u00d7 closer)`);
+        });
+        btn(r, 'play a phrase NOW (current context)', () => {
+          const G = g(), s = G.score;
+          if (!s) return log('✗ no score yet');
+          s.nextIn = 0.01;
+          log('→ next tick composes a phrase in the current context — listen');
+        });
+        const r2 = row(el);
+        for (const cx of ['day', 'night', 'yard', 'interior']) {
+          btn(r2, 'phrase: ' + cx, async () => {
+            const G = g(), s = G.score;
+            if (!s) return log('✗ no score yet');
+            const { Rand, hash2 } = await import('./rng.js');
+            s.phraseN++;
+            s.playPhrase(new Rand(hash2(G.seed, 8887, s.phraseN) >>> 0),
+              { context: cx, temperament: cx === 'yard' ? 'monastic' : undefined });
+            log(`→ a ${cx} phrase, in this world\u2019s key (#${s.phraseN})`);
+          });
+        }
+        const r3 = row(el);
+        btn(r3, 'discovery stinger', () => { const s = g().score; s ? s.stinger('discovery') : log('✗ no score yet'); });
+        btn(r3, 'audition the chimes (all 20)', async () => {
+          const A = g().audio;
+          if (!A.ctx || A.ctx.state !== 'running') return log('✗ audio not running');
+          const names = ['war-waking', 'war-held', 'war-gate', 'war-sacked', 'war-broken', 'war-column',
+            'proving-signed', 'proving-taken', 'naming', 'season-clear', 'season-veil', 'season-longcold',
+            'season-glasswind', 'doc', 'part', 'well-drink', 'well-scrape', 'oldone', 'want', 'want-done'];
+          log('→ auditioning ' + names.length + ' chimes, 2.4s apart — watch here for each name');
+          for (const n of names) {
+            log('  ♪ ' + n);
+            A.sig(n);
+            await new Promise(res => setTimeout(res, 2400));
+          }
+          log('→ the audition ends');
+        });
+        const r4 = row(el);
+        btn(r4, 'ring the near wall', () => {
+          const G = g();
+          const near = G.stills.stillsNear(pos().x, pos().z, 500)[0];
+          if (!near) return log('✗ no still within 500m');
+          G.audio.wallBells(1234, near.temperament, near.x, near.z);
+          log(`→ ${near.name} rings (${near.temperament} register)`);
+        });
+        btn(r4, 'a star falls 400m north', () => { g().audio.starfall(pos().x, pos().z - 400); log('→ listen up, then north'); });
+        btn(r4, 'transmission static', () => { g().audio.txWhoosh(); });
+        btn(r4, 'caravan bell 30m east', () => {
+          const A = g().audio;
+          A._bellAcc && A._bellAcc.set('bench', 1);
+          A.caravanBell('bench', pos().x + 30, pos().z, true, 1);
+          log('→ one jingle, off your right ear (screen-relative)');
+        });
       }));
       c.appendChild(sec('THE TONGUES — composed speech (ARC XIII)', (el) => {
         const r = row(el);

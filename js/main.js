@@ -39,6 +39,7 @@ import {
 import { saveGame, loadGame, clearSave, listSaves } from './save.js';
 import { TopicSystem } from './topics.js';
 import { PhotoMode } from './photo.js';
+import { Score } from './music.js';
 // THE THREADS: a soul at the threatened still owns the waking — never rumor
 const RUMOR_OWN_WAKING = 'the nests around US, walker. our own walls. we do not need the caravans to tell us — we hear the brood-song at dusk.';
 import { InteriorSystem } from './interiors.js';
@@ -261,6 +262,7 @@ class Game {
     this.spoken = {};             // THE MEMORY: id -> { met, lastDay, said: [line-hashes, capped] } — what each mouth told you
     this.lived = {};              // THE BIOGRAPHY, the lived chapter: key -> [{day, text}] — what happened to them on YOUR watch (capped)
     this.photo = null;            // PHOTO MODE: constructed after the renderer exists
+    this.score = null;            // THE SCORE: the composer, born with the seed
     this.proving = null;          // THE PROVING: the active deep-delve contract {megaKey, megaName, megaType, x, z, reward, day}
     this.provingReady = null;     // an impactful moment opened the door: {day, reason} — wells offer for 6 days
     this._staticT = 0;            // seconds of visible reassembly hum after arrival
@@ -339,7 +341,9 @@ class Game {
         });
       },
       onTurretFire: (t, foe) => {
-        this.audio.play('shot');
+        // the wall's gun sounds from the WALL, not from inside your head
+        if (this.audio.spatialTone) this.audio.spatialTone(t.x, t.z, 160, { type: 'square', f0: 540, f1: 110, dur: 0.11, g: 0.13 });
+        else this.audio.play('shot');
         this.vfx.beam(new THREE.Vector3(t.x, t.y, t.z),
           new THREE.Vector3(foe.pos.x - t.x, foe.pos.y + foe.def.scale - t.y, foe.pos.z - t.z).normalize(),
           { length: Math.hypot(foe.pos.x - t.x, foe.pos.z - t.z), color: 0xffd27f, dur: 0.1, radius: 0.05 });
@@ -630,6 +634,7 @@ class Game {
       this.recordEvent('found', m.name);
       this.audio.play('chime');
       this.ui.toast(`STRUCTURE LOGGED: ${m.name.toUpperCase()}`, 'good');
+      if (this.score) this.score.stinger('discovery'); // three notes of YOUR motif
       this.journal.push({ type: 'lore', cat: 'place', title: m.name.toUpperCase(), body: `a ${({ ring: 'shattered orbital ring', colossus: 'fallen colossus', dish: 'listening array', spire: 'broken spire' })[m.type]} — logged to cartography.` });
     };
 
@@ -973,6 +978,7 @@ class Game {
   }
 
   damageEnemy(e, dmg, opts = {}) {
+    this._combatT = 2; // the fight is on: the ambient bed ducks
     // knockback away from the player, scaled by hit weight
     const kx = e.pos.x - this.player.pos.x, kz = e.pos.z - this.player.pos.z;
     const kd = Math.hypot(kx, kz) || 1;
@@ -1403,7 +1409,7 @@ class Game {
           mats2.scrap = (mats2.scrap || 0) + pv.reward;
           const prize = makePart(PART_DEFS.filter(d2 => d2.slot !== 'LEGS')[hash2(this.seed, hashString(pv.megaKey) | 0, 55) % PART_DEFS.filter(d2 => d2.slot !== 'LEGS').length].id, 3, false, (Math.random() * 0xffffffff) >>> 0);
           this.inventory.parts.push(prize);
-          this.audio.play('bell');
+          if (this.audio.sig) this.audio.sig('proving-taken'); else this.audio.play('bell');
           this.ui.toast(`THE PROVING, TAKEN — ${pv.reward} ▤ · ${prize.name.toUpperCase()} (Mk.III)`, 'good');
           this.rootStory('story:proving:' + pv.megaKey, 'delve',
             `the walker signed the old form, went down into ${pv.megaName} past guardians the halls had saved up, and came back with the deep room's keeping. the yards call that a proving, and they mean it as a title.`);
@@ -1610,7 +1616,7 @@ class Game {
         body: `${doc.body}<br><i style="color:var(--amber-dim)">recovered in ${doc.region} · day ${day}</i>`,
       });
       this.inventory.mats.salt = (this.inventory.mats.salt || 0) + (rand.chance(0.4) ? 1 : 0);
-      this.audio.play('pickup'); // a document is a find, and finds have a sound
+      if (this.audio.sig) this.audio.sig('doc'); else this.audio.play('pickup'); // a document is a find, and finds have a sound
       this.ui.toast(`${doc.title} ABSORBED — logged to journal`, 'good');
       // testimony is evidence: a named, undiscovered place gets marked
       if (doc.lead && this.world.markDiscovered({ ...doc.lead, rumored: true })) {
@@ -1655,7 +1661,9 @@ class Game {
   }
 
   collectLoot(loot, rand, label) {
-    this.audio.play('pickup');
+    // what you found decides the sound: metal clanks, the rest ticks
+    if (loot.parts && loot.parts.length && this.audio.sig) this.audio.sig('part');
+    else this.audio.play('pickup');
     const got = [];
     for (const [id, n] of Object.entries(loot.mats)) {
       this.inventory.mats[id] = (this.inventory.mats[id] || 0) + n;
@@ -2030,6 +2038,7 @@ class Game {
         mem.said.push(hashString(line) >>> 0);
         if (mem.said.length > 40) mem.said.shift();
         this.dlg.lines.push({ text: line });
+        if (this.audio.sig) this.audio.sig('oldone');
       }
     }
     this.deliverRumors(npc);
@@ -2145,12 +2154,13 @@ class Game {
   }
 
   fulfillWantNow(f, c) {
+    if (this.audio.sig) this.audio.sig('want-done');
     c.loyalty = 1;
     c.wantDone = 1 + Math.floor(this.worldT);
     f.sworn = true;
     this.recordLived('n:' + f.name, `the want of half a life was answered — ${c.want.name || (c.want.type === 'ride' ? 'the lattice, witnessed' : c.want.type === 'deep' ? 'the last floor, stood in' : 'the glass-wind, stood in')}`);
     this.audio.play('bell');
-    this.ui.banter(f.name, WANT_DONE[c.want.type] || WANT_DONE.place);
+    this.ui.banter(f.name, decorate(WANT_DONE[c.want.type] || WANT_DONE.place, f, new Rand((Math.random() * 0xffffffff) >>> 0)));
     this.ui.toast(`${f.name.toUpperCase()} IS SWORN — the want is answered`, 'good');
     const target = c.want.name || (c.want.type === 'ride' ? 'the lattice' : c.want.type === 'deep' ? 'the last floor' : 'the glass-wind');
     this.rootStory('story:want:' + f.name, 'legend',
@@ -2361,7 +2371,22 @@ class Game {
     // day-lines join their hand-written idles
     if (f._idleT > 110 + (f._idleN || 0) % 3 * 40) {
       f._idleT = 0; f._idleN = (f._idleN || 0) + 1;
-      const salt = hash2(this.seed, hashString(f.name) | 0, day + 4441);
+      const salt = hash2(this.seed, hashString(f.name) | 0, day + 4441 + (f._idleN || 0));
+      // THE TONGUES, properly: the loom LEADS the road talk now — grounded
+      // composition (region, weather, the war just lived) takes most turns;
+      // the hand-written idles season rather than dominate
+      if ((salt % 100) < 55) {
+        const h = (this.war.history || [])[this.war.history.length - 1];
+        const ws = h ? this.resolveStillByKey(h.stillKey) : null;
+        const ctx = {
+          region: this.world.biomeAt(p.pos.x, p.pos.z).id,
+          storm: Math.max(this.storm, this.shard || 0), stage: 0,
+          warAfter: h && Math.floor(this.worldT) - h.day <= 8 && ws
+            && Math.hypot(ws.x - p.pos.x, ws.z - p.pos.z) < 12000
+            ? { outcome: h.outcome, still: h.stillName || ws.name, here: false } : null,
+        };
+        return smalltalk(f, new Rand(salt >>> 0), ctx);
+      }
       const pool = [...BANTER.idle.any, ...(BANTER.idle[f.temperament] || []),
         ...(c && c.loyalty ? BANTER.sworn : []),
         composeSmalltalk(f, new Rand(salt >>> 0)),
@@ -2541,7 +2566,7 @@ class Game {
       const pool = this.EPITHET_POOLS[dominant ? dominant[0] : 'legend'] || this.EPITHET_POOLS.legend;
       c.epithet = pool[hash2(this.seed, hashString(name) | 0, 5151) % pool.length];
       this.recordLived('n:' + name, `the yards coined them a name: ${c.epithet}`);
-      this.audio.play('bell');
+      if (this.audio.sig) this.audio.sig('naming'); else this.audio.play('bell');
       this.ui.toast(`THE YARDS HAVE A NAME FOR ${name.toUpperCase()}: ${c.epithet.toUpperCase()}`, 'good');
       this.journal.push({
         type: 'lore', cat: 'event', title: `${name.toUpperCase()}, CALLED ${c.epithet.toUpperCase()}`,
@@ -3018,7 +3043,7 @@ class Game {
         const fx = this.player.pos.x + Math.sin(a) * dist;
         const fz = this.player.pos.z + Math.cos(a) * dist;
         this.fall = { epoch, x: fx, z: fz, day, until: day + 3, cored: false };
-        this.audio.play('boom');
+        if (this.audio.starfall) this.audio.starfall(fx, fz); else this.audio.play('boom');
         this.shakeT = 0.8;
         this.ui.toast(`SOMETHING TEARS THE SKY — a star falls to the ${bearingWord(fx - this.player.pos.x, fz - this.player.pos.z)}`, 'rust');
         this.world.markDiscovered({ key: 'fall:' + epoch, name: 'the fall of day ' + (1 + day), kind: 'starfall', x: fx, z: fz, rumored: true });
@@ -4216,6 +4241,7 @@ class Game {
           body: `reach the deep room of ${target.name} (${noun}) and take the prize it keeps. the guardians stand heavier than anything the halls usually hold. pay: ${pay} ▤ on the taking, plus the cache itself. marked on the map; on the compass if it was free.`,
         });
         this.audio.play('quest');
+        if (this.audio.sig) this.audio.sig('proving-signed');
         this.renderDlg(); return;
       } else if (id === 'svc:warraise') {
         const sack = (this.war.history || []).find(h => h.stillKey === npc.still.key
@@ -4300,6 +4326,7 @@ class Game {
         // the reason has a name in it, when the life provides one
         if (c.want.who) wsay = wsay.replace('it took someone from me', `it took ${c.want.who} from me`);
         if (c.want.kinName) wsay += ` ${c.want.kin} of mine keeps there — ${c.want.kinName}. that is the want, whole.`;
+        if (this.audio.sig) this.audio.sig('want');
         say(wsay);
         if (c.want.x !== undefined) {
           this.world.markDiscovered({
@@ -4406,6 +4433,7 @@ class Game {
         if (p.corruption < 1 || (mats.salt || 0) < cost) return;
         mats.salt -= cost;
         p.corruption = 0;
+        if (this.audio.sig) this.audio.sig('well-scrape');
         this.vfx.rise(p.pos, { color: 0xffffff, r: 1.8 });
         sys(`the Rust is scoured from your seams · −${cost} ❄ salt`);
         say('white ground is clean ground. so are you, for now.');
@@ -4779,7 +4807,7 @@ class Game {
       const target = this._stormOverride ?? Math.min(1, smoothstep(0.7, 0.86, sn) * this.season.stormMul
         + (this.season.id === 'veil' ? smoothstep(0.55, 0.7, sn) * 0.35 : 0));
       if (this._seasonIdx !== undefined && this._seasonIdx !== this.season.idx) {
-        this.audio.play('bell');
+        if (this.audio.sig) this.audio.sig('season-' + this.season.id); else this.audio.play('bell');
         this.ui.toast(`THE SEASON TURNS — ${this.season.name}: ${this.season.line}`, this.season.id === 'clear' ? 'good' : 'rust');
         this.journal.push({
           type: 'lore', cat: 'event', title: 'THE SEASON TURNS — ' + this.season.name,
@@ -4950,6 +4978,30 @@ class Game {
       // the desert's voice
       const distMoved = Math.min(5, Math.hypot(p.pos.x - lastX, p.pos.z - lastZ));
       const moving = (p.vel.x * p.vel.x + p.vel.z * p.vel.z) > 1;
+      // THE GROUNDING: the ear knows where it stands and what stands near
+      if (this.audio.listener) {
+        this.audio.listener.x = p.pos.x; this.audio.listener.z = p.pos.z; this.audio.listener.yaw = this.camYaw;
+      }
+      this._earT = (this._earT || 0) - dt;
+      if (this._earT <= 0) {
+        this._earT = 0.5;
+        const nests = this.nests.nestsNear(p.pos.x, p.pos.z, 260).filter(n => !this.destroyedNests[n.key]);
+        let best = null;
+        for (const n of nests) {
+          const d = Math.hypot(n.x - p.pos.x, n.z - p.pos.z);
+          if (!best || d < best.d) best = { d, n };
+        }
+        this._earNest = best ? {
+          dist: best.d,
+          bearing: Math.atan2(best.n.x - p.pos.x, best.n.z - p.pos.z) - this.camYaw,
+          hot: this.warSys.pressed(best.n.key) || (this.nests.screaming && this.nests.screaming(best.n.key)),
+        } : null;
+        let pop = 0;
+        for (const rec of this.stills.loaded.values()) {
+          for (const n of rec.npcs) if (Math.hypot(n.pos.x - p.pos.x, n.pos.z - p.pos.z) < 42) pop++;
+        }
+        this._earPop = pop;
+      }
       this.audio.update(dt, {
         storm: Math.max(this.storm, this.shard || 0), corruption: p.corruption, answered: this.embrace !== null, inField,
         moving, sprinting: inp.shift && moving,
@@ -4959,13 +5011,51 @@ class Game {
         interior: !!this.interiors.active, // the wind dies at the door
         // calm spells: the wind has moods of its own
         windMod: 0.5 + 0.5 * this.windNoise.noise(this.worldT * 2.7, 5.5),
+        nestDist: this._earNest ? this._earNest.dist : undefined,
+        nestBearing: this._earNest ? this._earNest.bearing : undefined,
+        nestHot: !!(this._earNest && this._earNest.hot),
+        yardPop: this._earPop || 0,
+        shard: this.shard || 0,
+        combatHot: (this._combatT = Math.max(0, (this._combatT || 0) - dt)) > 0,
       });
+      // THE SCORE: the desert hums to itself, in this world's key
+      if (!this.score && this.audio.ctx) {
+        this.score = new Score(this.audio, this.seed);
+        this.score.setVolume(SETTINGS.audio.music ?? 0.5);
+      }
+      if (this.score) {
+        const nearStill = this._earPop > 0;
+        const sunUp = Math.sin(this.dayT * Math.PI * 2) > -0.08;
+        this.score.update(dt, {
+          dayT: this.dayT,
+          context: this.interiors.active ? 'interior' : nearStill ? 'yard' : sunUp ? 'day' : 'night',
+          temperament: nearStill ? (this.stills.stillsNear(p.pos.x, p.pos.z, 200)[0] || {}).temperament : undefined,
+          combatHot: (this._combatT || 0) > 0,
+        });
+      }
+      // the caravan bells jingle where the columns walk (the strays carry none)
+      for (const cvn of this.caravans.loadedList()) {
+        if (cvn.stray || !cvn.members.some(m => m.hp > 0)) continue;
+        this.audio.caravanBell && this.audio.caravanBell(cvn.key, cvn.pseudoStill.x, cvn.pseudoStill.z, !cvn._nightCamped && !cvn.ambushed, dt);
+      }
+      // dawn and dusk ring the near wall: seeded per still, colored by kin
+      const hourNow = Math.floor(this.dayT * 24);
+      if (this._bellHour === undefined) this._bellHour = hourNow;
+      if (hourNow !== this._bellHour) {
+        this._bellHour = hourNow;
+        if (hourNow === 6 || hourNow === 18) {
+          const near = this.stills.stillsNear(p.pos.x, p.pos.z, 400)[0];
+          if (near && ((this.stillStates[near.key] || {}).stage || 0) > -2) {
+            this.audio.wallBells && this.audio.wallBells(hash2(this.seed, hashString(near.key) | 0, hourNow), near.temperament, near.x, near.z);
+          }
+        }
+      }
       this.projectiles.update(dt, this.world, p, this.enemies,
         (e, dmg, pos) => this.damageEnemy(e, dmg),
-        (dmg) => { const dealt = p.damage(dmg); if (dealt > 0) { this.shakeT = 0.25; this.uiHurt(dealt); } },
+        (dmg) => { const dealt = p.damage(dmg); if (dealt > 0) { this.shakeT = 0.25; this.uiHurt(dealt); this._combatT = 2; } },
         (pos) => this.vfx.spark(pos, { color: 0xbbb09a, size: 0.3 }),
         allies);
-      this.enemies.onHitPlayer = (dealt) => { if (dealt > 0) { this.shakeT = 0.3; this.uiHurt(dealt); } };
+      this.enemies.onHitPlayer = (dealt) => { if (dealt > 0) { this.shakeT = 0.3; this.uiHurt(dealt); this._combatT = 2; } };
       this.enemies.onSegmentBroke = (e, seg) => {
         this.audio.play('boom');
         this.vfx.spark(seg.pos.clone().setY(seg.pos.y + 1), { color: 0xffb347, size: 0.8 });

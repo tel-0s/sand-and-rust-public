@@ -1053,6 +1053,7 @@ export class UI {
       slider('MASTER', 'everything, before the buses', () => a.master, (v) => a.master = v);
       slider('AMBIENT', 'wind · field hum · the choir', () => a.ambient, (v) => a.ambient = v);
       slider('FOOTFALLS', 'your own weight in the world', () => a.steps, (v) => a.steps = v);
+      slider('THE SCORE', 'the desert humming to itself — 0 for pure silence', () => a.music ?? 0.5, (v) => { a.music = v; if (g.score) g.score.setVolume(v); });
       slider('COMBAT', 'violence, incoming and outgoing', () => a.combat, (v) => a.combat = v);
       slider('INTERFACE', 'chimes · pickups · voices', () => a.ui, (v) => a.ui = v);
     } else if (this.setTab === 'video') {

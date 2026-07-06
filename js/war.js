@@ -93,6 +93,7 @@ export class WarSystem {
     f.known = true;
     g.rumors = (g.rumors || []).filter(r => !(r.kind === 'waking' && r.data.frontKey === f.key));
     g.audio.play('bell');
+    if (g.audio.sig) g.audio.sig('war-waking');
     g.ui.toast(via === 'sense'
       ? `THE NESTS ARE WAKING TOGETHER — a front masses against ${f.stillName.toUpperCase()}`
       : `WORD OF WAR — a front ${f.phase === 'marching' ? 'MARCHES on' : 'masses against'} ${f.stillName.toUpperCase()}`, 'rust');
@@ -539,6 +540,11 @@ export class WarSystem {
   // forgets the mass, and the desert takes a season's breath
   close(f, day, outcome) {
     const g = this.game;
+    // each ending in its own chord — the ear learns the words
+    if (f.known && g.audio.sig) {
+      const chord = { held: 'war-held', stood: 'war-held', gate: 'war-gate', sacked: 'war-sacked', broken: 'war-broken', column: 'war-column' }[outcome];
+      if (chord) g.audio.sig(chord);
+    }
     // THE PROVING: a war survived is an impactful moment — the door opens
     if (f.known && ['held', 'stood', 'broken', 'column', 'gate'].includes(outcome) && g.openProving) {
       g.openProving('the war against ' + f.stillName + ', ended');

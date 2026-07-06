@@ -1019,6 +1019,220 @@ THE BUILDS.
   rites), war stories and campaign epithets on the Legend substrate,
   gossip saturation, the balance pass, Workbench completion.
 
+## build 2026.7.117 — the wall-gun learns its indoor voice — ✅ SHIPPED
+
+Playtest catch: still turrets during a raid were WAY louder than
+before THE GROUNDING. Correct — when turret fire moved to the spatial
+pool its source gain was set to 0.35 (vs the old flat shot's 0.10) on
+the bet that distance attenuation would tame it. At raid distances
+(10–40 m, attenuation ~0.8+) it landed ~3× the old level, and turrets
+stack.
+
+- ✅ Source gain 0.35 → 0.13: at 20 m the effective level is ~0.108 —
+  the old feel up close — and it now FADES with distance (0.14
+  attenuation at 120 m) instead of playing flat everywhere, which is
+  strictly better than the pre-Grounding behavior.
+- Verified: round132 (attenuation curve sane/code gain tamed/far
+  fade), boot clean, regression 61 fps.
+
+## build 2026.7.116 — the loom takes the road (+ THE RESONANCE bench) — ✅ SHIPPED
+
+Three playtest notes closed, and the composer gets its instruments
+panel.
+
+- ✅ **The loom LEADS the road talk**: banter was decorated but barely
+  composed — the idle pool was ~10 fixed lines with two bare
+  persona-lines mixed in, and the grounded composer never reached the
+  road. Now 55% of idle beats compose grounded smalltalk with real
+  context (biome, weather, the war just lived within 12 km); the
+  hand-written idles season instead of dominate. Measured: 29
+  distinct lines in 40 idle draws.
+- ✅ **Companions remember, not rumor**: asked about a place you
+  discovered together, a companion answers from MEMORY — lived
+  chapter first ('mark it? i was THERE, walker — stood the proving at
+  MN-2 "PALEBREAKER", day 31. some maps you carry in the plating.'),
+  else a we-stood-there line. No map-mark chatter. Strangers still
+  rumor properly.
+- ✅ **The bench sees the company**: nearestResident includes
+  companions — every nearest-soul tool now reads Lorn where he
+  stands.
+- ✅ **THE RESONANCE bench** (GEN tab): the-ear live readout (listener,
+  nest distance/heat, yard pop, brood/yard/hollow/duck gains, combat
+  heat), the-motif readout (degrees, root, phrase count, next-in),
+  play-a-phrase-now plus one button per context (day/night/yard/
+  interior), the discovery stinger, a 20-chime sequential audition
+  with names logged, ring-the-near-wall, a demo star-fall,
+  transmission static, and a caravan bell off your right ear.
+- Verified: round131 (12 checks), boot clean, regression 61 fps.
+
+## build 2026.7.115 — "The Resonance" (ARC XVI, build 3) — ✅ SHIPPED · ARC COMPLETE
+
+THE SCORE — the desert hums to itself, in your world's key. The
+generative composer; the shelf's last item; not one sampled byte.
+
+- ✅ **THE MOTIF**: the world seed derives 5–7 degrees and a root key,
+  fixed forever — your world has ITS song, verified same-seed-same-
+  motif and different-seed-different-song.
+- ✅ **The moment picks the scale**: day wanders dorian; night thins
+  to five notes and drops the register; yards go pentatonic in their
+  temperament's octave (the monks low, the traders bright); the
+  hollow places get close intervals for close walls.
+- ✅ **The contour grammar**: phrases compose from the motif the way
+  the tongues compose speech — six contours (the arch, the sway, the
+  climb-with-looks-back…), four rhythm cells, seeded rests, an
+  occasional breathing root beneath. Every phrase seeded per (world,
+  phrase-index): replayable, never looping.
+- ✅ **Silence is the instrument**: two to four MINUTES between
+  phrases; dawn and dusk lean 2.6× closer. Combat gets a low
+  heartbeat pulse, never a melody. Volume 0 is honest, total silence.
+- ✅ **Synthesized voices**: an FM bell (inharmonic 2.76-ratio shimmer)
+  and a filtered pluck — Web Audio math only.
+- ✅ **The discovery stinger**: three rising notes of YOUR motif when
+  a structure logs — the world acknowledging the find in its own key.
+- ✅ THE SCORE slider in calibration ('the desert humming to itself —
+  0 for pure silence').
+- Verified: round130 (15 checks — motif determinism/shape/phrase
+  seeded + replayable/rest length + dawn leaning/context coloring/
+  pulse-not-melody/zero-silence/stinger/live construction/slider),
+  boot clean, regression 61 fps.
+
+**ARC XVI — THE RESONANCE: COMPLETE.** The Grounding, the Chimes, the
+Score. The world sounds where it is, each moment has its own sound,
+and the desert hums to itself in your world's key — all of it
+synthesized, the filesize covenant intact. And with it, THE SHORT
+SHELF IS CLEAR: photo mode, the chart, the relief, the strays, the
+manual, the greebles, and the whole audio arc. What remains in the
+notes is the long shelf — and the engine port conversation.
+
+## build 2026.7.114 — "The Resonance" (ARC XVI, build 2) — ✅ SHIPPED
+
+THE CHIMES — each moment its own sound. Plus the photo-look fix.
+
+- ✅ **The photo-look fix** (playtest, macOS): right-drag opened the
+  context menu and pointer-capture was gone. Photo mode now swallows
+  the context menu and ANY button drags the view — but only drags
+  that START on the viewport (dial-drags stay dial-drags); the menu
+  behaves normally again on exit.
+- ✅ **Twenty signatures**, all composed from the same two primitives:
+  the war's waking HORN and five resolution chords (held's rising
+  triad, the gate's bell-on-top, sacked's grief fall, broken's hollow
+  unresolved pair, column's clean two notes); the proving's oath and
+  taking; the naming bell; four season motifs (clear rises, veil
+  wavers, longcold descends, glasswind glitters); documents flutter
+  like pages, parts CLANK; the well rituals (the scrape's rasp and
+  relief); the old one's recognition — two voices a hair apart,
+  settling into one; the want asked (a rising question) and answered
+  (a warm fall).
+- ✅ **Combat ducks the bed**: a duck node between the ambient bus and
+  the master — fast in (the fight reads), slow out (the desert
+  returns).
+- Verified: round129 (15 checks — context menu swallowed/restored,
+  any-button viewport drag + dial safety, all 20 signatures schedule
+  voices, duck in/out, the horn and gate chord fire from the real war
+  close, combat heat reaches the ear), boot clean, regression 61 fps.
+
+## build 2026.7.113 — "The Resonance" (ARC XVI, build 1) — ✅ SHIPPED
+
+THE GROUNDING — the world sounds where it is. All synthesized, as
+covenanted; not one byte of sample data.
+
+- ✅ **The spatial pool**: sounds carry a position — distance
+  attenuation (power curve to a max range) and stereo pan by bearing
+  relative to the walker's facing, matched to the CAMERA's handedness
+  so the ear agrees with the eye.
+- ✅ **The brood-song**: the thing every war rumor promised — a pulsing
+  three-partial sub-drone that swells inside ~220 m of a living nest,
+  pans toward it, and throbs FASTER when the nest is pressed by a
+  massing front. Muffled indoors.
+- ✅ **The yard murmur**: stills sound inhabited — a soft clatter bed
+  scaled by how many souls actually stand within earshot, with
+  seeded work-blips (a tap, a low word) on top.
+- ✅ **Wall-bells at dawn and dusk**: within 400 m of a living still at
+  06:00/18:00, the wall rings — 2–4 strikes, count and spacing seeded
+  per still, register colored by temperament (the monks ring low, the
+  traders bright).
+- ✅ **Caravan bells**: 'bells on the road' is finally literal — a
+  jingle riding the column's walk, positioned on the road, silent
+  when they halt (and the strays carry none, as written).
+- ✅ **The glass-wind tinkles**: high glass pings riding shard
+  density; **the hollow places** get a dark closed-in bed with the
+  occasional echoing drip; **the star-fall** screams down and the
+  ground answers FROM the impact point; **transmission** rides a
+  static whoosh paired with the visual; **turret fire** sounds from
+  the WALL, not inside your head.
+- Verified: round128 (16 checks — graph/gain motion through the real
+  update loop/spatial attenuation + pan honesty + range gate/bell
+  cadence + halt silence/ear feeds/fall trigger), boot clean,
+  regression 61 fps.
+
+**ARC XVI — THE RESONANCE: THE DESIGN** (committed 2026-07-06)
+The audio arc: the sound pass and procedural music, one covenant.
+Tenets:
+(1) EVERYTHING IS SYNTHESIZED — no samples, no files: every effect
+and the entire score are Web Audio math, same as the day the wind bed
+shipped. The filesize covenant holds.
+(2) THE WORLD SOUNDS WHERE IT IS — a spatial voice pool gives sounds
+a position: distance attenuation and stereo pan relative to the
+walker's ear. The brood-song comes FROM the nest; the bells come FROM
+the wall.
+(3) SILENCE IS THE INSTRUMENT — the desert's score is mostly rests.
+Music arrives like weather: seeded phrases at seeded hours, leaning
+on the world's state, never looping wallpaper.
+(4) THE SAME SEED SINGS THE SAME SONG — the score derives from the
+world seed: your world has ITS motif; a still's chime-set colors by
+temperament; the same day sings the same phrase.
+
+THE BUILDS:
+- b1 THE GROUNDING — the world half of the sound pass: the spatial
+  pool, then voices for what has none — the brood-song near living
+  nests (you were promised you could HEAR it), dawn/dusk wall-bells
+  at stills (seeded per still, temperament-colored), yard murmur
+  scaling with the living roster, caravan bells that actually jingle,
+  the glass-wind's shard tinkle, an interior bed for the hollow
+  places, star-fall scream and impact, turret fire, transmission
+  static (pairing the txStatic visual).
+- b2 THE CHIMES — the event half: distinct signatures replacing
+  generic tones — the war's waking horn and its resolution chords
+  (held/gate/sacked each their own), the proving, the naming, season
+  turns (one motif each), document/part/material pickup families,
+  the well rituals (the drink, the scrape), companion want/answered
+  motifs, the old-one recognition sting; plus combat ducking the
+  ambient bed.
+- b3 THE SCORE (crown) — the generative composer: a seed-derived
+  world motif; context scales (day, night, yards by temperament, war
+  pulse); a phrase engine composing melody the way the tongues
+  compose speech (contour grammars over the motif); synthesized
+  voices (FM bell, breath pad, plucked sine); phrases every few
+  minutes, denser at dawn/dusk/arrivals/victories; a music bus with
+  its own slider and toggle. The desert hums to itself, in your
+  world's key.
+
+## build 2026.7.112 — THE GREEBLES — ✅ SHIPPED
+
+The variety pass, at long last. The bolted salvage looks like WHAT it
+is — one fixed shape per slot becomes a derived wardrobe.
+
+- ✅ **Shape families from identity**: every worn part derives its
+  build from its own def + uid — 5 plating builds (slab, layered,
+  ridged, pauldrons, skirt), 5 arms (prongs, cannon sleeve, twin
+  blades, gauntlets, coil), 4 cores (cube, twin stack, caged lantern,
+  spine tap) — plus coherent per-part mounting variance, so the
+  assembly reads hand-bolted. Same part, same iron, every machine,
+  every save.
+- ✅ **Tier builds up, rust grows**: Mk.III wears crest blocks and
+  mount cradles; rusted parts sprout nubs on the worn iron.
+- ✅ **OPTICS and MODULES greeble now too**: visor bars, twin stalks,
+  lens boxes; whip antennas, pack boxes, vent stacks — slots that
+  never showed at all.
+- ✅ **Everyone wears it for free**: enemies, stilldwellers, wanderers,
+  caravan crews, followers' hosts, and the strays all pass through the
+  same attachGreebles — zero new call sites. Materials now shared via
+  cache (the old code minted one per part).
+- Measured: 26–29 distinct builds per 30 parts per slot (was: exactly
+  1 per slot); lineup screenshot confirms distinct silhouettes.
+- Verified: round127 (11 checks — variety/determinism/tier/rust/mat
+  sharing/optics + modules/live roster), boot clean, regression 61 fps.
+
 ## build 2026.7.111 — THE GATE — ✅ SHIPPED
 
 A field report from the producer (who, with Lorn and Brann, shattered

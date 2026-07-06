@@ -1,6 +1,6 @@
 // Rogue machines. Some are merely feral; some carry the Rust.
 import * as THREE from 'three';
-import { Rand, hash2 } from './rng.js';
+import { Rand, hash2, hashString } from './rng.js';
 import { Names } from './grammar.js';
 import { clamp } from './noise.js';
 import { makePart, PART_DEFS } from './parts.js';
@@ -136,25 +136,98 @@ function generateLoadout(kind, tierMult, infected) {
 // visible salvage bolted to the frame: you can see what it's wearing.
 // mood tints the plate by the still's fortune — kept metal in the good
 // years, sand-eaten patchwork in the lean ones. Legible at a glance.
+// THE GREEBLES (the variety pass): the bolted salvage finally looks like
+// WHAT it is. Shape family, build, and jitter all derive from the part's
+// own identity (def + uid) — the same part wears the same iron on every
+// machine, every load, every save. Tier builds it up; rust grows on it.
+const _greebleMats = new Map();
+function gMat(color, basic = false) {
+  const key = (basic ? 'b' : 'l') + color;
+  let m = _greebleMats.get(key);
+  if (!m) {
+    m = basic ? new THREE.MeshBasicMaterial({ color }) : new THREE.MeshLambertMaterial({ color });
+    _greebleMats.set(key, m);
+  }
+  return m;
+}
 export function attachGreebles(mesh, loadout, s, mood = 0) {
   const plate = mood > 0 ? 0x8a8172 : mood < 0 ? 0x4a4238 : 0x6e675c;
   for (const p of loadout) {
-    const mat = new THREE.MeshLambertMaterial({ color: p.rusted ? 0x9c4422 : plate });
+    const h = (hashString((p.defId || p.id || p.name || 'part') + ':' + (p.uid || p.seed || 0)) >>> 0);
+    const jit = (k, r) => ((((h >>> k) & 255) / 255) * 2 - 1) * r; // seeded jitter, per-part
+    const mat = gMat(p.rusted ? 0x9c4422 : plate);
+    const dark = gMat(0x3a342c);
+    const tier = p.tier || 1;
+    // mounting variance: every part sits a little differently on every
+    // frame — a coherent per-part shift, so the assembly reads hand-bolted
+    const mx = jit(16, 0.07), my = jit(18, 0.05), mz = jit(20, 0.05);
+    const add = (w, hh, d, x, y, z, m2, rx = 0, ry = 0, rz = 0) => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w * s, hh * s, d * s), m2 || mat);
+      b.position.set((x + mx) * s, (y + my) * s, (z + mz) * s);
+      b.rotation.set(rx, ry, rz);
+      mesh.add(b);
+      return b;
+    };
     if (p.slot === 'PLATING') {
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(1.0 * s, 0.18 * s, 0.8 * s), mat);
-      slab.position.set(0, 1.35 * s, -0.1 * s); slab.rotation.z = 0.06;
-      mesh.add(slab);
-    } else if (p.slot === 'ARMS') {
-      for (const side of [-1, 1]) {
-        const prong = new THREE.Mesh(new THREE.BoxGeometry(0.16 * s, 0.6 * s, 0.16 * s), mat);
-        prong.position.set(side * 0.75 * s, 1.0 * s, 0.2 * s); prong.rotation.x = -0.35;
-        mesh.add(prong);
+      const v = h % 5;
+      if (v === 0) add(1.0, 0.18, 0.8, 0, 1.35, -0.1, mat, 0, 0, 0.06 + jit(3, 0.05)); // the classic slab
+      else if (v === 1) { // layered: two offset plates
+        add(0.95, 0.14, 0.75, 0, 1.3, -0.12, mat, 0, jit(4, 0.1), 0.05);
+        add(0.7, 0.12, 0.55, 0.1, 1.46, -0.05, mat, 0, jit(6, 0.15), -0.04);
+      } else if (v === 2) { // ridged: slab with spine ribs
+        add(0.95, 0.16, 0.75, 0, 1.34, -0.1, mat, 0, 0, 0.05);
+        for (let i = 0; i < 3; i++) add(0.1, 0.1, 0.6, -0.25 + i * 0.25, 1.46, -0.1, dark);
+      } else if (v === 3) { // pauldrons: shoulder plates
+        for (const side of [-1, 1]) add(0.34, 0.14, 0.5, side * 0.62, 1.42, 0, mat, 0, 0, side * (0.25 + jit(5, 0.1)));
+      } else { // skirt: hanging side plates
+        for (const side of [-1, 1]) add(0.14, 0.55, 0.6, side * 0.58, 0.85, -0.05, mat, 0, 0, side * 0.08);
       }
+      if (tier >= 3) add(0.4, 0.1, 0.35, jit(8, 0.2), 1.52, -0.1, dark); // Mk.III crest block
+    } else if (p.slot === 'ARMS') {
+      const v = (h >>> 2) % 5;
+      if (v === 0) { // the classic prongs
+        for (const side of [-1, 1]) add(0.16, 0.6, 0.16, side * 0.75, 1.0, 0.2, mat, -0.35 + jit(3, 0.08));
+      } else if (v === 1) { // cannon sleeve: one heavy tube arm
+        add(0.24, 0.24, 0.9, 0.72, 1.05, 0.25, mat, jit(4, 0.06));
+        add(0.3, 0.3, 0.2, 0.72, 1.05, 0.7, dark);
+      } else if (v === 2) { // twin blades: angled fins off the forearms
+        for (const side of [-1, 1]) add(0.08, 0.5, 0.4, side * 0.78, 0.95, 0.15, dark, -0.5, 0, side * 0.15);
+      } else if (v === 3) { // gauntlets: boxed fists
+        for (const side of [-1, 1]) add(0.28, 0.3, 0.3, side * 0.74, 0.8, 0.25, mat, 0, jit(5, 0.2));
+      } else { // coil arm: stacked rings up one arm
+        for (let i = 0; i < 3; i++) add(0.22 - i * 0.03, 0.1, 0.22 - i * 0.03, -0.74, 0.8 + i * 0.2, 0.2, i % 2 ? dark : mat);
+      }
+      if (tier >= 2) add(0.18, 0.12, 0.18, 0.74, 1.28, 0.1, dark); // shoulder actuator
     } else if (p.slot === 'CORE') {
-      const core = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.3 * s, 0.3 * s),
-        new THREE.MeshBasicMaterial({ color: p.rusted ? 0xff5a2a : 0x6fe8d0 }));
-      core.position.set(0, 1.1 * s, -0.55 * s); core.rotation.y = 0.6;
-      mesh.add(core);
+      const glow = gMat(p.rusted ? 0xff5a2a : 0x6fe8d0, true);
+      const v = (h >>> 4) % 4;
+      if (v === 0) add(0.3, 0.3, 0.3, 0, 1.1, -0.55, glow, 0, 0.6 + jit(3, 0.3)); // the classic cube
+      else if (v === 1) { // twin stack
+        add(0.2, 0.2, 0.2, 0, 1.0, -0.55, glow, 0, 0.4);
+        add(0.16, 0.16, 0.16, 0, 1.26, -0.52, glow, 0, 0.9);
+      } else if (v === 2) { // caged lantern
+        add(0.24, 0.24, 0.24, 0, 1.1, -0.55, glow, 0, 0.5);
+        for (const side of [-1, 1]) add(0.06, 0.36, 0.06, side * 0.18, 1.1, -0.55, dark);
+      } else { // spine tap: a dark riser with the glow at its tip
+        add(0.1, 0.5, 0.1, 0, 1.05, -0.58, dark);
+        add(0.16, 0.16, 0.16, 0, 1.36, -0.58, glow, 0, 0.6);
+      }
+      if (tier >= 3) add(0.4, 0.06, 0.3, 0, 0.86, -0.55, dark); // Mk.III mount cradle
+    } else if (p.slot === 'OPTICS') {
+      const v = (h >>> 6) % 3;
+      if (v === 0) add(0.5, 0.08, 0.1, 0, 1.62, 0.42, dark); // visor bar
+      else if (v === 1) { for (const side of [-1, 1]) add(0.07, 0.2, 0.07, side * 0.2, 1.72, 0.35, dark, -0.2); } // stalks
+      else add(0.2, 0.16, 0.18, 0.22, 1.6, 0.4, dark, 0, jit(3, 0.2)); // lens box, offset
+    } else if (p.slot === 'MODULE') {
+      const v = (h >>> 8) % 3;
+      if (v === 0) add(0.05, 0.7, 0.05, -0.35, 1.7, -0.45, dark, 0.15); // whip antenna
+      else if (v === 1) add(0.45, 0.5, 0.25, 0, 1.0, -0.62, mat, 0, 0, jit(4, 0.08)); // pack box
+      else for (let i = 0; i < 3; i++) add(0.3, 0.06, 0.12, 0, 0.85 + i * 0.14, -0.6, dark); // vent stack
+    }
+    // rust grows: nubs on the worn iron
+    if (p.rusted) {
+      const rust = gMat(0x7a3416);
+      add(0.09, 0.09, 0.09, jit(10, 0.5), 1.2 + jit(12, 0.25), -0.2 + jit(14, 0.3), rust, jit(5, 1), jit(7, 1));
     }
   }
 }
