@@ -5,6 +5,7 @@ import { SETTINGS, saveSettings, VIEW_DIST, DIFFICULTY } from './settings.js';
 import { MATERIALS, CONSUMABLES, RECIPES, canCraft } from './items.js';
 import { MAP_COLORS, BIOMES } from './biomes.js';
 import { CHUNK } from './world.js';
+import { formerDesignation } from './transmit.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -107,6 +108,30 @@ export class UI {
     setTimeout(() => el.remove(), 4200);
   }
 
+  // THE ROAD TALK: the company's voice, a caption above the hotbar
+  banter(name, text) {
+    let el = document.getElementById('banter');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'banter';
+      document.getElementById('hud').appendChild(el);
+    }
+    el.innerHTML = `<span class="banter-name">${name}</span> — “${text}”`;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart the fade
+    el.classList.add('show');
+    clearTimeout(this._banterTo);
+    this._banterTo = setTimeout(() => el.classList.remove('show'), 6500);
+  }
+
+  // THE STATIC: a full-screen reassembly burst on arriving down the line
+  txStatic() {
+    const el = document.createElement('div');
+    el.className = 'tx-static';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1300);
+  }
+
   float(screenX, screenY, text, cls = '') {
     const el = document.createElement('div');
     el.className = 'dmg-float ' + cls;
@@ -135,6 +160,12 @@ export class UI {
     $('bar-corr').style.width = p.corruption + '%';
     $('corr-num').textContent = Math.round(p.corruption) + '%';
     $('corr-row').style.display = (p.corruption > 0 || s.corruptionRate > 0) ? 'flex' : 'none';
+    // an answered letter renames the meter: it is not an infection anymore
+    const corrLbl = g.embrace !== null ? 'COMMUNION' : 'RUST';
+    if (this._corrLbl !== corrLbl) {
+      this._corrLbl = corrLbl;
+      document.querySelector('#corr-row .bar-label').textContent = corrLbl;
+    }
     // the one who walks with you
     const fol = g.followers && g.followers.follower;
     const ft = $('follower-tag');
@@ -176,6 +207,15 @@ export class UI {
     } else if (g.tracked && g.tracked.kind === 'signal') {
       const q = g.quests.find(q => q.id === g.tracked.id && !q.done);
       if (q) pin = { x: q.x, z: q.z, title: q.title, desc: 'reach the signal source' };
+    } else if (g.tracked && g.tracked.kind === 'war' && g.war && g.war.front) {
+      const f = g.war.front;
+      const c = f.phase === 'marching' && g.warSys ? g.warSys.columnAt()
+        : f.phase === 'siege' ? { x: f.x, z: f.z } : { x: f.heartX, z: f.heartZ };
+      pin = {
+        x: c.x, z: c.z, title: `THE FRONT AGAINST ${f.stillName.toUpperCase()}`,
+        desc: f.phase === 'massing' ? `massing — it marches on day ${1 + f.marchDay}`
+          : f.phase === 'marching' ? 'the column is on the road' : 'the siege is at the wall',
+      };
     } else if (g.tracked && g.tracked.kind === 'epic' && g.epic) {
       pin = g.epic.state === 'seek'
         ? { x: g.epic.x, z: g.epic.z, title: `THE RECOMMISSION OF ${g.epic.npcName.toUpperCase()}`, desc: `take the Shaper from the Mother beneath ${g.epic.megaName}` }
@@ -258,6 +298,11 @@ export class UI {
   // ---------- dialogue ----------
   renderDialogue(session) {
     const $id = (i) => document.getElementById(i);
+    // speaking with the Rust wears its own skin: rust-red, glitching
+    $id('panel-dialogue').classList.toggle('dlg-rust', !!session.npc.isRust);
+    // the Rust has no standing to measure and no subjects to file
+    $id('dlg-topics').style.display = (session.npc.isRust || session.npc.isRecord) ? 'none' : '';
+    $id('dlg-disp').style.display = (session.npc.isRust || session.npc.isRecord) ? 'none' : '';
     $id('dlg-name').textContent = session.npc.name;
     $id('dlg-role').textContent = session.npc.role.toUpperCase();
     $id('dlg-still').textContent = `${session.npc.still.name} — ${session.temperamentLabel}`;
@@ -265,20 +310,54 @@ export class UI {
     disp.textContent = `${session.tier.label} (${Math.round(session.effD)})`;
     disp.className = session.tier.cls;
     $id('dlg-text').innerHTML = session.lines.map(l =>
-      l.sys ? `<div class="dlg-sys">${l.text}</div>` : `<div>“${l.html ?? l.text}”</div>`).join('');
+      l.sys ? `<div class="dlg-sys">${l.text}</div>`
+        : l.narrate ? `<div class="dlg-narrate">${l.html ?? l.text}</div>`
+        : `<div>“${l.html ?? l.text}”</div>`).join('');
     const box = $id('dlg-text');
     box.querySelectorAll('.tw').forEach(el =>
       el.addEventListener('click', () => this.game.dialogueAction('topic:' + el.dataset.t)));
     box.scrollTop = box.scrollHeight;
-    // the rail: every subject you've ever picked up, newest first
+    // the rail: newest subjects up front; a well-traveled mind files the
+    // rest under headings — a still, a place, a name, an idea
     const rail = $id('dlg-topic-list');
     rail.innerHTML = '';
-    for (const t of session.topics || []) {
+    const all = session.topics || [];
+    if (session.npc !== this._dlgNpc) { this._dlgNpc = session.npc; this.dlgTopicCat = null; }
+    const CATS = [
+      { id: 'still', label: 'a still', kinds: ['s'] },
+      { id: 'place', label: 'a place', kinds: ['m', 'r'] },
+      { id: 'name', label: 'a name', kinds: ['p'] },
+      { id: 'idea', label: 'an idea', kinds: ['c'] },
+    ];
+    const chip = (t) => {
       const b = document.createElement('button');
       b.className = 'dlg-topic' + (t.fresh ? ' fresh' : '');
       b.textContent = t.label;
       b.addEventListener('click', () => this.game.dialogueAction('topic:' + t.id));
       rail.appendChild(b);
+    };
+    if (all.length <= 10 && !this.dlgTopicCat) {
+      for (const t of all) chip(t);
+    } else if (this.dlgTopicCat) {
+      const cat = CATS.find(c => c.id === this.dlgTopicCat);
+      const back = document.createElement('button');
+      back.className = 'dlg-topic dlg-topic-cat';
+      back.textContent = '← all subjects';
+      back.addEventListener('click', () => { this.dlgTopicCat = null; this.game.renderDlg(); });
+      rail.appendChild(back);
+      for (const t of all.filter(t => cat.kinds.includes(t.kind || t.id[0]))) chip(t);
+    } else {
+      const recent = all.slice(0, 6);
+      for (const t of recent) chip(t);
+      for (const cat of CATS) {
+        const items = all.filter(t => cat.kinds.includes(t.kind || t.id[0]));
+        if (!items.length) continue;
+        const b = document.createElement('button');
+        b.className = 'dlg-topic dlg-topic-cat' + (items.some(t => t.fresh) ? ' fresh' : '');
+        b.textContent = `${cat.label}… (${items.length})`;
+        b.addEventListener('click', () => { this.dlgTopicCat = cat.id; this.game.renderDlg(); });
+        rail.appendChild(b);
+      }
     }
     const opts = $id('dlg-options');
     opts.innerHTML = '';
@@ -288,6 +367,21 @@ export class UI {
         h.className = 'dlg-trade-head';
         h.textContent = o.header;
         opts.appendChild(h);
+        continue;
+      }
+      if (o.input) {
+        // an option that asks for words: a label, a field, a confirm
+        const wrap = document.createElement('div');
+        wrap.className = 'dlg-opt dlg-opt-input';
+        const lab = document.createElement('div'); lab.textContent = o.label; wrap.appendChild(lab);
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.maxLength = 20; inp.placeholder = o.placeholder || '';
+        inp.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') go.click(); });
+        const go = document.createElement('button');
+        go.className = 'dlg-opt'; go.textContent = '✓ so name it';
+        go.addEventListener('click', () => { if (inp.value.trim()) this.game.dialogueAction(o.id + ':' + encodeURIComponent(inp.value)); });
+        wrap.appendChild(inp); wrap.appendChild(go);
+        opts.appendChild(wrap);
         continue;
       }
       const b = document.createElement('button');
@@ -539,6 +633,12 @@ export class UI {
         ctx.beginPath();
         ctx.moveTo(sx - 5, sy - 2); ctx.lineTo(sx, sy - 7); ctx.lineTo(sx + 5, sy - 2);
         ctx.fill();
+        if (g.attuned && g.attuned[String(m.key).replace(/^still:/, '')]) {
+          ctx.strokeStyle = '#7fd8ff';                  // an attuned node hums
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - 10); ctx.lineTo(sx + 8, sy - 1); ctx.lineTo(sx, sy + 8); ctx.lineTo(sx - 8, sy - 1);
+          ctx.closePath(); ctx.stroke();
+        }
       } else if (m.kind === 'camp') {
         ctx.fillStyle = '#ff8a3c';                      // a little flame
         ctx.beginPath();
@@ -549,13 +649,19 @@ export class UI {
         ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = m.destroyed ? '#5a4438' : '#e8401f';
         ctx.beginPath(); ctx.arc(sx, sy, 6.5, 0, Math.PI * 2); ctx.stroke();
+      } else if (m.kind === 'front') {
+        ctx.strokeStyle = '#ff4a4a'; ctx.lineWidth = 2;      // crossed blades: the massing
+        ctx.beginPath();
+        ctx.moveTo(sx - 4, sy - 4); ctx.lineTo(sx + 4, sy + 4);
+        ctx.moveTo(sx + 4, sy - 4); ctx.lineTo(sx - 4, sy + 4);
+        ctx.stroke(); ctx.lineWidth = 1;
       } else {
         ctx.fillStyle = '#ffd27f';
         ctx.beginPath();
         ctx.moveTo(sx, sy - 5); ctx.lineTo(sx + 5, sy); ctx.lineTo(sx, sy + 5); ctx.lineTo(sx - 5, sy);
         ctx.fill();
       }
-      ctx.fillStyle = m.kind === 'still' ? '#5fb8a6' : m.kind === 'camp' ? '#ff8a3c' : m.kind === 'nest' ? (m.destroyed ? '#5a4438' : '#e8401f') : '#ffd27f';
+      ctx.fillStyle = m.kind === 'still' ? '#5fb8a6' : m.kind === 'camp' ? '#ff8a3c' : m.kind === 'nest' ? (m.destroyed ? '#5a4438' : '#e8401f') : m.kind === 'front' ? '#ff4a4a' : '#ffd27f';
       ctx.fillText(m.name.toUpperCase() + (m.kind === 'nest' && m.destroyed ? ' (SILENCED)' : ''), sx + 9, sy + 3);
     }
     // caravans in earshot: a moving bell on the map while they're near
@@ -640,6 +746,62 @@ export class UI {
     const tab = this.journalTab;
     const list = $('journal-list');
     list.innerHTML = '';
+    // LEGENDS: the ledger of stories — yours and the others' — and where
+    // the desert tells each one
+    if (tab === 'legends') {
+      const head = document.createElement('div');
+      head.className = 'journal-entry';
+      const idLine = g.formerLife && g.formerLife.choice === 'carried' ? ` — and you answer to ${formerDesignation(g.seed)}`
+        : g.formerLife && g.formerLife.choice === 'walker' ? ' — the old name given back to its dead'
+        : g.formerLife && g.formerLife.choice === 'erased' ? ' — the record is ash; only the deeds remain' : '';
+      head.innerHTML = `<div class="je-title">${g.epithet ? 'THEY CALL YOU ' + g.epithet.toUpperCase() : g.namingRefused ? 'THE WALKER WALKS (a name was offered, and given back)' : 'UNNAMED — the walker'}${idLine.toUpperCase()}</div>
+        <div class="je-body">${g.stories.filter(s => s.kind !== 'other').length} stories of yours on the roads · ${g.stories.filter(s => s.kind === 'other').length} legends of others</div>`;
+      list.appendChild(head);
+      // THE COMPANY: the ones who walked with you, and what the roads made of them
+      const comps = Object.entries(g.companions || {});
+      if (comps.length) {
+        const co = document.createElement('div');
+        co.className = 'journal-entry';
+        const rows = comps.map(([n, c]) =>
+          `${n}${c.epithet ? ', called ' + c.epithet.toUpperCase() : ''} — ${c.stories} shared stor${c.stories === 1 ? 'y' : 'ies'} on the roads`).join('<br>');
+        co.innerHTML = `<div class="je-title">THE COMPANY${g.bandName ? ' — the yards call you ' + g.bandName.toUpperCase() : ' — the desert knows who walks with you'}</div>
+          <div class="je-body">${rows}</div>`;
+        list.appendChild(co);
+      }
+      // THE CAMPAIGNS: the ledger of fronts fought, however they ended
+      if (g.war && g.war.history && g.war.history.length) {
+        const wars = document.createElement('div');
+        wars.className = 'journal-entry';
+        const word = (o) => o === 'held' || o === 'stood' ? 'HELD'
+          : o === 'sacked' ? 'SACKED' : o === 'column' ? 'THE COLUMN, BROKEN'
+          : o === 'broken' ? 'THE WAKING, BROKEN' : o.toUpperCase();
+        const rows = [...g.war.history].reverse().slice(0, 8)
+          .map(h => `day ${1 + h.day} — ${h.stillName || h.stillKey}: ${word(h.outcome)}${h.raised ? ' · RAISED SINCE' : ''}`)
+          .join('<br>');
+        wars.innerHTML = `<div class="je-title">THE CAMPAIGNS — ${g.war.history.length} front${g.war.history.length === 1 ? '' : 's'} the desert remembers</div>
+          <div class="je-body">${rows}</div>`;
+        list.appendChild(wars);
+      }
+      for (const st of [...g.stories].reverse()) {
+        const el = document.createElement('div');
+        el.className = 'journal-entry';
+        const places = Object.keys(st.roots);
+        const names = places.slice(0, 3).map(k => k === '*' ? 'everywhere' : ((g.resolveStillByKey(k) || {}).name || k));
+        const where = places.includes('*') ? 'told everywhere'
+          : `told at ${places.length} still${places.length === 1 ? '' : 's'}: ${names.join(', ')}${places.length > 3 ? '…' : ''}`;
+        el.innerHTML = `<div class="je-title">${st.kind === 'other' ? '◇ A LEGEND OF ANOTHER' : '◆ A STORY OF YOURS'} — day ${st.day}</div>
+          <div class="je-body">${st.body}</div>
+          <div class="je-dist">${where}</div>`;
+        list.appendChild(el);
+      }
+      if (!g.stories.length) {
+        const el = document.createElement('div');
+        el.className = 'journal-entry';
+        el.innerHTML = '<div class="je-body">no stories yet. do something worth telling, near someone who tells.</div>';
+        list.appendChild(el);
+      }
+      return;
+    }
     // active work chains first — the desert's open contracts; the paid sink
     const chainOrder = [...g.chains].reverse().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
     if (tab === 'all' || tab === 'work') for (const ch of chainOrder) {
@@ -670,7 +832,29 @@ export class UI {
       items = items.filter(e => e.type === 'quest' || e.cat === 'work')
         .sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0)); // resolved signals sink below
     }
-    else if (tab === 'memories') items = items.filter(e => e.type !== 'quest' && (e.cat || 'memory') === 'memory');
+    else if (tab === 'memories') {
+      items = items.filter(e => e.type !== 'quest' && (e.cat || 'memory') === 'memory');
+      // THE FORMER LIFE: the evidence assembles at the head of the memories
+      const fl = g.formerLife;
+      const pieces = (g.txLeaks || 0) + (fl && fl.doc ? 1 : 0) + (fl && fl.rim ? 1 : 0) + (fl && fl.soul ? 1 : 0);
+      if (fl && pieces > 0) {
+        const des = g.txLeaks > 0 ? formerDesignation(g.seed) : null;
+        const P = (found, text, tease) => `${found ? '◆' : '·'} ${found ? text : tease}`;
+        const rows = [
+          P(g.txLeaks >= 1, 'the intake manifest — berth 4407, waiver signed', 'something the line holds, one ride away'),
+          P(g.txLeaks >= 2, 'the shift log — asking after a coast that is gone', 'a voice in the wire, more rides down'),
+          P(g.txLeaks >= 3, 'the boarding record — carried nothing; seemed relieved', 'the line’s last fragment, further still'),
+          P(fl.rim, 'the name, cut deep in a well-rim and traced smooth', 'a name not yet found in stone'),
+          P(fl.soul, 'the one who cut it — they know the gait', 'a voice not yet met'),
+          P(fl.doc, 'a routing slip in the buried paper — filed twice', 'a cross-reference not yet unearthed'),
+        ].join('<br>');
+        const el = document.createElement('div');
+        el.className = 'journal-entry';
+        el.innerHTML = `<div class="je-title">THE FORMER LIFE — ${des || 'a designation, surfacing'} · ${pieces} of 6</div>
+          <div class="je-body">${rows}${fl.trail ? '<br><br>the pieces lean the same way. the trail waits.' : ''}</div>`;
+        list.appendChild(el);
+      }
+    }
     else if (tab === 'places') items = items.filter(e => e.cat === 'place');
     else if (tab === 'events') items = items.filter(e => e.cat === 'event');
     if (!items.length && !list.children.length) list.innerHTML = '<div style="color:var(--amber-dim);font-size:12px;padding:20px">nothing filed here yet. the desert is patient.</div>';
@@ -749,6 +933,9 @@ export class UI {
         [{ v: 0.3, label: 'CHUNKY (pixelated)' }, { v: 0.45, label: 'RETRO (pixelated)' },
          { v: 0.75, label: 'LOW (0.75×)' }, { v: 1, label: 'STANDARD (1×)' }, { v: 1.5, label: 'HIGH (1.5×)' }, { v: 2, label: 'NATIVE (2×)' }],
         () => v.renderScale, (x) => v.renderScale = x);
+      cycle('PIXEL SMOOTHING', 'pixel modes: antialias at full res BEFORE the chunky downscale — kills the distant shimmer',
+        [{ v: true, label: 'ON (pre-downscale AA)' }, { v: false, label: 'OFF (raw)' }],
+        () => SETTINGS.video.pixelAA !== false, (x) => SETTINGS.video.pixelAA = x);
       cycle('VIEW DISTANCE', 'how far the haze allows',
         Object.entries(VIEW_DIST).map(([k, d]) => ({ v: k, label: d.label })),
         () => v.viewDist, (x) => v.viewDist = x);

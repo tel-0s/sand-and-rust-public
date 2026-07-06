@@ -9,7 +9,7 @@ import { makeBox, makeCircle } from './collision.js';
 import { BIOMES, biomeWeights } from './biomes.js';
 import { TEMPERAMENTS, QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
-import { buildForm, sampleForm, lineageAt, applyMods } from './frames.js';
+import { buildForm, sampleForm, lineageAt, biomeAccent, applyMods } from './frames.js';
 
 const STILL_CELL = 1900;
 const FIELD_R = 42;            // the still's safe-field radius
@@ -135,6 +135,7 @@ export class NPC {
     // load-bearing): temperament shapes the drift, the valley lends its accent
     this.form = sampleForm(hash2(world.seed, still.salt, idx * 41 + 5501), {
       temperament: still.temperament, lineage: lineageAt(world.seed, still.x, still.z), spread: 0.9,
+      accent: biomeAccent(world.seed, world.biomeAt(still.x, still.z).id),
     });
     this.mesh = buildResidentMesh(still.temperament, false, this.bodyFrame, this.form);
     scene.add(this.mesh);
@@ -192,8 +193,11 @@ export class NPC {
     const dusk = dayFrac > 0.42 && dayFrac < 0.55; // the social hour
     const dawn = dayFrac < 0.1;
     let best = null, bestScore = 0.85; // below this, just wander
+    const roster = this.still._roster || [];
     for (const p of spots) {
       let sc = 0.4 + Math.random() * 0.4;
+      // a post already worked repels the next soul — the yard spreads out
+      if (roster.some(n => n !== this && n.activity === p)) sc -= 1.1;
       if (this.roleLikes(p.kind)) sc += 1.6 * this.needs.work * this.jobBias;
       if (p.kind === 'well' || p.kind === 'landmark') sc += this.needs.social * 1.1;
       if (dusk && p.kind === 'well') sc += 1.4;                       // everyone drifts to the well at dusk
@@ -295,12 +299,34 @@ export class NPC {
     } else {
       this.pauseT -= dt;
       this.tickNeeds(dt);
+      // personal space: two souls in arm's reach of each other step apart
+      this._spaceT = (this._spaceT || 0) - dt;
+      if (this._spaceT <= 0) {
+        this._spaceT = 1.2;
+        const roster = this.still._roster || [];
+        for (const n of roster) {
+          if (n === this || n.hp <= 0) continue;
+          const dd = Math.hypot(n.pos.x - this.pos.x, n.pos.z - this.pos.z);
+          if (dd < 2.1) {
+            const away = Math.atan2(this.pos.x - n.pos.x, this.pos.z - n.pos.z) + (Math.random() - 0.5) * 0.8;
+            this.target = { x: this.pos.x + Math.sin(away) * (3.5 + Math.random() * 3), z: this.pos.z + Math.cos(away) * (3.5 + Math.random() * 3) };
+            break;
+          }
+        }
+      }
       if (this.pauseT <= 0 && !(isNight && !this.isWatch)) {
         this.activity = this.chooseActivity(dayFrac);
         if (this.activity) this.activityT = 22 + Math.random() * 28;
         else {
-          const a = Math.random() * Math.PI * 2, r = Math.random() * 14;
-          this.target = { x: this.still.x + Math.sin(a) * r, z: this.still.z + Math.cos(a) * r };
+          // the whole yard is theirs: roam wide, or drift back toward home —
+          // no more knotting up in arm's reach of the well
+          const a = Math.random() * Math.PI * 2;
+          if (Math.random() < 0.45 && this.home) {
+            this.target = { x: this.home.x + Math.sin(a) * 4, z: this.home.z + Math.cos(a) * 4 };
+          } else {
+            const r = 6 + Math.random() * 24;
+            this.target = { x: this.still.x + Math.sin(a) * r, z: this.still.z + Math.cos(a) * r };
+          }
         }
       }
     }
@@ -395,7 +421,7 @@ function buildLandmark(gb, colliders, still, world, rng) {
   still.jobSpots.push({ kind: 'landmark', x: lx + 2.4, z: lz + 0.4, fx: -2.4, fz: -0.4 });
 }
 
-function buildStillGeo(still, world) {
+function buildStillGeo(still, world, works = {}) {
   const gb = new GeoBuilder();
   const colliders = [];
   const rng = randFromHash(world.seed, still.salt, 77);
@@ -664,6 +690,49 @@ function buildStillGeo(still, world) {
     colliders.push(makeBox(wx, wz, len / 2, 0.45, a + Math.PI / 2, y + wallH - 0.05, true));
     if (i % 3 === 0) still.lampSpots.push([wx, y + wallH + 0.6, wz]);
   }
+  // THE HEARTHSTONE: a claimed hearth raises a standing stone by the well —
+  // and if the desert has named the keeper, the stone carries the name
+  if (works.isStake) {
+    const hy = gY(cx + 4.2, cz + 3.4);
+    gb.addBox(cx + 4.2, hy + 1.1, cz + 3.4, 0.9, 2.2, 0.5, STONE, 0.3, 0.04);
+    gb.addBox(cx + 4.2, hy + 2.05, cz + 3.4, 1.1, 0.3, 0.7, STONE, 0.3);
+    if (works.epithet) gb.addBox(cx + 4.2, hy + 1.4, cz + 3.62, 0.6, 0.35, 0.06, [0.85, 0.65, 0.3], 0.3); // the name, in brass
+    colliders.push(makeBox(cx + 4.2, cz + 3.4, 0.5, 0.3, 0.3, hy + 2.2, true));
+    still.lampSpots.push([cx + 4.2, hy + 2.5, cz + 3.4]);
+  }
+
+  // THE FUNDING: what the keeper paid for, drawn on its own stream so the
+  // rest of the still never moves an inch when the works change
+  if (works.homes || works.market || works.walls) {
+    const wrng = randFromHash(world.seed, still.salt, 4433);
+    for (let i = 0; i < (works.homes || 0); i++) {
+      const a = wrng.range(0, Math.PI * 2), r = 20 + i * 3.5;
+      const hx = cx + Math.sin(a) * r, hz = cz + Math.cos(a) * r, y = gY(hx, hz);
+      gb.addBox(hx, y + 1.3, hz, 4.4, 2.6, 3.8, SAND, a);
+      gb.addBox(hx, y + 2.8, hz, 4.9, 0.35, 4.3, WOODY, a);
+      gb.addBox(hx + Math.sin(a) * 2.1, y + 1.0, hz + Math.cos(a) * 2.1, 1.1, 2.0, 0.3, WOODY, a); // door
+      colliders.push(makeBox(hx, hz, 2.3, 2.0, a, y + 2.7, true));
+      still.lampSpots.push([hx + Math.sin(a + 1.6) * 2.6, y + 2.2, hz + Math.cos(a + 1.6) * 2.6]);
+    }
+    if (works.market) {
+      const a = wrng.range(0, Math.PI * 2);
+      const sx = cx + Math.sin(a) * 13, sz = cz + Math.cos(a) * 13, y = gY(sx, sz);
+      for (const ox of [-1.6, 1.6]) for (const oz of [-1.2, 1.2]) gb.addBox(sx + ox, y + 1.1, sz + oz, 0.18, 2.2, 0.18, WOODY);
+      gb.addBox(sx, y + 2.3, sz, 4.2, 0.15, 3.2, CLOTH, 0.05);
+      gb.addBox(sx, y + 0.8, sz, 3.2, 0.5, 2.0, WOODY);
+      colliders.push(makeBox(sx, sz, 1.7, 1.1, 0, y + 1.05, true));
+      still.jobSpots.push({ kind: 'stall', x: sx, z: sz - 2.2, fx: 0, fz: 2.2 });
+    }
+    for (let w = 0; w < (works.walls || 0); w++) {
+      const wr = 36.5 + w * 1.4;
+      for (let i = 0; i < 26; i++) {
+        const a = (i / 26) * Math.PI * 2 + w * 0.12;
+        const wx = cx + Math.sin(a) * wr, wz = cz + Math.cos(a) * wr, y = gY(wx, wz);
+        gb.addBox(wx, y + 1.5 + w * 0.5, wz, 2.4, 1.0, 0.8, STONE, a + Math.PI / 2);
+      }
+    }
+  }
+
   return { geo: gb.build(), colliders };
 }
 
@@ -764,7 +833,14 @@ export class StillManager {
           };
         }
       }
-      this.cells.set(key, info);
+      // THE STAKE: a claimed hearth can be renamed by its keeper — the
+    // override applies at the source, so routes, gossip, markers, and
+    // histories-to-come all read the name you gave it
+    if (info && this.hooks.stillName) {
+      const ov = this.hooks.stillName(info.key);
+      if (ov) info.name = ov;
+    }
+    this.cells.set(key, info);
       return info;
     }
     {
@@ -798,6 +874,13 @@ export class StillManager {
           lampSpots: [],
         };
       }
+    }
+    // THE STAKE: a claimed hearth can be renamed by its keeper — the
+    // override applies at the source, so routes, gossip, markers, and
+    // histories-to-come all read the name you gave it
+    if (info && this.hooks.stillName) {
+      const ov = this.hooks.stillName(info.key);
+      if (ov) info.name = ov;
     }
     this.cells.set(key, info);
     return info;
@@ -870,6 +953,19 @@ export class StillManager {
         for (const t of rec.turrets || []) {
           t.cd -= dt;
           if (t.cd > 0 || !enemies) continue;
+          // THE GATES ARE BARRED: monastic walls read the third bloom as a
+          // machine of the Rust — their turrets say so before their mouths do
+          if (this.gatesBarred && rec.info.temperament === 'monastic' && player) {
+            const pd = Math.hypot(player.pos.x - t.x, player.pos.z - t.z);
+            if (pd < 40) {
+              t.cd = 1.6;
+              t.barrel.lookAt(player.pos.x, player.pos.y + 1.2, player.pos.z);
+              player.damage(6 * t.tier, true);
+              if (this.hooks.onTurretFire) this.hooks.onTurretFire(t, { pos: player.pos, def: { scale: 1 } });
+              if (!rec._barredTold && this.hooks.onGatesBarred) { rec._barredTold = true; this.hooks.onGatesBarred(rec.info); }
+              continue;
+            }
+          }
           let foe = null, fd = 45;
           for (const e of enemies.enemies) {
             if (e.def.stationary) continue;
@@ -920,7 +1016,8 @@ export class StillManager {
     // build it — stage rides info and shapes everything below
     if (this.hooks.assess) this.hooks.assess(info);
     info.stage = info.stage || 0;
-    const built = buildStillGeo(info, this.world);
+    const works = (this.hooks.worksOf && this.hooks.worksOf(info.key)) || {};
+    const built = buildStillGeo(info, this.world, works);
     const mesh = new THREE.Mesh(built.geo, stillMat);
     mesh.matrixAutoUpdate = false; mesh.updateMatrix();
     this.scene.add(mesh);
@@ -934,7 +1031,8 @@ export class StillManager {
     const turrets = [];
     const turretCols = [];
     const turretCount = info.stage <= -2 ? 0
-      : 1 + (this.hooks.hasFundedTurret && this.hooks.hasFundedTurret(info.key) ? 1 : 0);
+      : 1 + (this.hooks.hasFundedTurret && this.hooks.hasFundedTurret(info.key) ? 1 : 0)
+      + (works.turrets || 0);
     const trng = randFromHash(this.world.seed, info.salt, 337);
     for (let i = 0; i < turretCount; i++) {
       const a = trng.range(0, Math.PI * 2);
@@ -956,9 +1054,10 @@ export class StillManager {
     const rng = randFromHash(this.world.seed, info.salt, 991);
     const neighbors = this.stillsNear(info.x, info.z, 9500).filter(s => s.key !== info.key);
     const npcs = [];
-    const effResidents = info.stage <= -2 ? 0
+    const worksHomes = ((this.hooks.worksOf && this.hooks.worksOf(info.key)) || {}).homes || 0;
+    const effResidents = worksHomes + (info.stage <= -2 ? 0
       : info.stage === -1 ? Math.max(2, Math.floor(info.residents * 0.6))
-      : info.residents + (info.stage >= 1 ? 2 : 0);
+      : info.residents + (info.stage >= 1 ? 2 : 0));
     // unfinished business outlasts the lean years: souls the game says must
     // stay (open contracts, epics) spawn even past the trimmed roster. The
     // loop still constructs every index up to the last one needed, so each
@@ -979,6 +1078,28 @@ export class StillManager {
       if (i >= effResidents && !(keep && keep.has(i))) { n.dispose(this.scene); continue; } // left with the lean years
       n.lingering = i >= effResidents; // stayed behind for you
       npcs.push(n);
+    }
+    // THE SETTLING: invited souls take the funded homes. The last
+    // worksHomes roster slots belong to settlers, in the order they came —
+    // they keep the name, temperament, and BODY you knew on the road.
+    const settlers = (this.hooks.settlersOf && this.hooks.settlersOf(info.key)) || [];
+    if (settlers.length && worksHomes) {
+      const extras = npcs.slice(-worksHomes);
+      for (let k = 0; k < Math.min(settlers.length, extras.length); k++) {
+        const n = extras[k], rec = settlers[k];
+        n.name = rec.name;
+        n.temperament = rec.temperament || n.temperament;
+        n.role = rec.role || n.role;
+        n.origin = rec.origin || n.origin;
+        n.settler = true;
+        if (rec.bodyFrame) n.bodyFrame = rec.bodyFrame;
+        if (rec.form) n.form = rec.form;
+        n.dispose(this.scene);
+        n.mesh = buildResidentMesh(n.temperament, false, n.bodyFrame, n.form);
+        n.mesh.position.copy(n.pos);
+        this.scene.add(n.mesh);
+        if (this.hooks.onSettlerLoaded) this.hooks.onSettlerLoaded(n, rec);
+      }
     }
     this.world.staticColliders.push(...built.colliders);
     const zone = info.stage <= -2 ? null : { x: info.x, z: info.z, r: FIELD_R };

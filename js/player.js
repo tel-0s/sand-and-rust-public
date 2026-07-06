@@ -37,6 +37,15 @@ export class Player {
 
   recompute(equipped) {
     this.stats = computeStats(equipped);
+    // THE THIRD BODY: rusted parts answer the blooming — +8% damage and
+    // +1 armor per rusted piece worn, on top of the RUST_BOOST they carry
+    if ((this.embraceLevel || 0) >= 3) {
+      const rc = Object.values(equipped).filter(pt => pt && pt.rusted).length;
+      if (rc) {
+        this.stats.damage = Math.round(this.stats.damage * (1 + 0.08 * rc) * 10) / 10;
+        this.stats.armor += rc;
+      }
+    }
     this.hull = Math.min(this.hull, this.stats.maxHull);
     this.energy = Math.min(this.energy, this.stats.energyCap);
     this.rebuildMesh(equipped);
@@ -49,13 +58,32 @@ export class Player {
     }
     const g = this.group;
     const rust = (p) => p && p.rusted;
-    const torsoMat = rust(equipped.PLATING) ? M.rust : M.body;
+    const torsoMat = this.fullBloom ? M.rust : rust(equipped.PLATING) ? M.rust : M.body;
 
     // torso: bulk scales with plating mass
     const bulky = equipped.PLATING && equipped.PLATING.stats.mass > 40;
     const torso = box(bulky ? 1.5 : 1.1, 1.2, bulky ? 1.1 : 0.8, torsoMat);
+    // THE EMBRACE, worn openly: rust stains bloom across the chassis, two
+    // per bloom, at fixed anchorages — the body stops hiding what it is
+    if ((this.embraceLevel || 0) >= 1 || this.fullBloom) {
+      const SPOTS = [[0.45, 1.7, 0.3], [-0.4, 1.3, -0.35], [0.2, 2.0, -0.3], [-0.5, 1.8, 0.25], [0.5, 1.1, -0.2], [-0.15, 2.15, 0.32]];
+      const nStains = this.fullBloom ? SPOTS.length : this.embraceLevel * 2;
+      for (let i = 0; i < Math.min(SPOTS.length, nStains); i++) {
+        const [sx, sy, sz] = SPOTS[i];
+        const stain = box(0.28 + i * 0.03, 0.22, 0.16, M.rust);
+        stain.position.set(sx, sy, sz);
+        stain.rotation.set(i * 0.7, i * 1.3, i * 0.4);
+        g.add(stain);
+      }
+    }
     torso.position.y = 1.55;
     g.add(torso);
+    if (this.fullBloom) {
+      const ember = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3),
+        new THREE.MeshBasicMaterial({ color: 0xff5a2a }));
+      ember.position.set(0, 1.55, 0.42); ember.rotation.y = 0.6;
+      g.add(ember);
+    }
     const chest = box(0.5, 0.3, 0.12, M.glow);
     chest.position.set(0, 1.7, (bulky ? 0.56 : 0.41));
     g.add(chest);

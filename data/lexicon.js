@@ -40,7 +40,9 @@ export const MACHINE = {
 };
 
 export const PART_EPITHET = {
-  origin: ['#maker.cap# #quality#', '#quality.cap#', '#maker.cap#'],
+  // a quality word alone is not a name — 'Series Bulwark Lamellar' read
+  // like a factory error. every epithet leads with a maker now.
+  origin: ['#maker.cap# #quality#', '#maker.cap#-#quality#', '#maker.cap#'],
   maker: ['solenne', 'karst', 'veldt', 'orrin', 'tessek', 'hadal', 'mirin', 'coriol', 'sundermark', 'abrasax',
     'quennet', 'vosgane', 'ferrier', 'almace', 'durande', 'okott', 'salvine', 'brandt', 'ellum', 'nacarat', 'tourmaline', 'wexford'],
   quality: ['pattern', 'type', 'mark', 'series', 'issue', 'cast', 'forge', 'line', 'strain', 'edition'],

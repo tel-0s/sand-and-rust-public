@@ -50,6 +50,10 @@ export const ROOM_GRAMMAR = {
     entry: 'elevator terminus', halls: ['cargo hall', 'customs row', 'tether gallery', 'counterweight vault', 'departure lounge'],
     grand: ['the terminus concourse', 'the cargo vault'], deep: 'the last platform', floors: [2, 3],
   },
+  launch: {
+    entry: 'crew tunnel', halls: ['fuel gallery', 'telemetry row', 'cryo store', 'checkout bay', 'suit-up room'],
+    grand: ['the integration hall', 'the flame trench'], deep: 'the countdown bunker', floors: [2, 3],
+  },
 };
 
 export class InteriorSystem {
@@ -299,6 +303,59 @@ export class InteriorSystem {
     const maxFloor = Math.max(...rooms.map(r => r.floor));
     for (const room of rooms) {
       const floorAbs = baseY + room.floorY;
+      // some grand halls open into CHASMS: the floor drops away under a
+      // bridge (a collider with a real bottom — stand on it, walk under it),
+      // a debris stair climbs back out, and the dark below holds its own
+      room.chasm = !!room.grand && room.w > 30 && room.d > 24 && rng.chance(0.5);
+      if (room.chasm) {
+        const PIT_D = 6.5, RIM = 3.6;
+        const px0 = room.x0 + RIM, px1 = room.x1 - RIM, pz0 = room.z0 + RIM, pz1 = room.z1 - RIM;
+        const pitY = floorAbs - PIT_D;
+        // rim ring (four slabs, standable at hall level)
+        const rims = [
+          [room.cx, (room.z0 + pz0) / 2, room.w / 2, RIM / 2],
+          [room.cx, (pz1 + room.z1) / 2, room.w / 2, RIM / 2],
+          [(room.x0 + px0) / 2, (pz0 + pz1) / 2, RIM / 2, (pz1 - pz0) / 2],
+          [(px1 + room.x1) / 2, (pz0 + pz1) / 2, RIM / 2, (pz1 - pz0) / 2],
+        ];
+        for (const [rx, rz, hw, hd] of rims) {
+          gb.addBox(rx, floorAbs - 0.35, rz, hw * 2, 0.7, hd * 2, FLOOR_C);
+          cols.push(makeBox(rx, rz, hw, hd, 0, floorAbs, true));
+        }
+        // pit walls (visual) + pit floor (walkable, darker)
+        gb.addBox(room.cx, pitY + PIT_D / 2 - 0.35, (room.z0 + pz0) / 2 + RIM / 4, room.w, PIT_D, 0.5, WALL_C2);
+        gb.addBox(room.cx, pitY + PIT_D / 2 - 0.35, (pz1 + room.z1) / 2 - RIM / 4, room.w, PIT_D, 0.5, WALL_C2);
+        gb.addBox((room.x0 + px0) / 2 + RIM / 4, pitY + PIT_D / 2 - 0.35, room.cz, 0.5, PIT_D, room.d, WALL_C2);
+        gb.addBox((px1 + room.x1) / 2 - RIM / 4, pitY + PIT_D / 2 - 0.35, room.cz, 0.5, PIT_D, room.d, WALL_C2);
+        gb.addBox(room.cx, pitY - 0.35, room.cz, room.w - RIM, 0.7, room.d - RIM, [0.1, 0.09, 0.08]);
+        cols.push(makeBox(room.cx, room.cz, (room.w - RIM) / 2, (room.d - RIM) / 2, 0, pitY, true));
+        // the bridge: spans the long axis at hall level, 2.8 wide
+        const alongX = room.w >= room.d;
+        const bw = alongX ? (px1 - px0) / 2 : 1.4, bd = alongX ? 1.4 : (pz1 - pz0) / 2;
+        gb.addBox(room.cx, floorAbs - 0.3, room.cz, bw * 2, 0.6, bd * 2, FLOOR_C);
+        cols.push(makeBox(room.cx, room.cz, bw, bd, 0, floorAbs, true, floorAbs - 0.6));
+        // glow studs at the bridge ends: readable in the dark
+        for (const e of [-1, 1]) {
+          const sx2 = alongX ? room.cx + e * (bw - 0.5) : room.cx + 1.2;
+          const sz2 = alongX ? room.cz + 1.2 : room.cz + e * (bd - 0.5);
+          const stud = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.3),
+            new THREE.MeshBasicMaterial({ color: 0x8a6c2e }));
+          stud.position.set(sx2, floorAbs + 0.1, sz2);
+          group.add(stud);
+        }
+        // a debris stair out of the dark, along one pit wall
+        const nSt = Math.ceil(PIT_D / 0.42);
+        const stx = px0 + 1.1;
+        for (let k = 1; k <= nSt; k++) {
+          const top = pitY + (k / nSt) * PIT_D;
+          const sz3 = pz1 - 1.0 - (k - 0.5) * 0.9;
+          gb.addBox(stx, (pitY + top) / 2, sz3, 2.0, top - pitY, 0.95, STEP_C);
+          cols.push(makeBox(stx, sz3, 1.0, 0.5, 0, top, true));
+        }
+        gb.addBox(room.cx, floorAbs + room.h + 0.35, room.cz, room.w + 0.8, 0.7, room.d + 0.8, CEIL_C);
+        for (const side of ['n', 's', 'w', 'e']) this.buildWall(gb, cols, jambs, room, side, baseY);
+        continue;
+      }
       gb.addBox(room.cx, floorAbs - 0.35, room.cz, room.w, 0.7, room.d, FLOOR_C);
       cols.push(makeBox(room.cx, room.cz, room.w / 2, room.d / 2, 0, floorAbs, true));
       gb.addBox(room.cx, floorAbs + room.h + 0.35, room.cz, room.w + 0.8, 0.7, room.d + 0.8, CEIL_C);
@@ -413,10 +470,12 @@ export class InteriorSystem {
     const pileRooms = rooms.filter(r => r !== rooms[0] && r.kind !== '__stair' && rng.chance(0.5)).slice(0, 5);
     for (let i = 0; i < pileRooms.length; i++) {
       const room = pileRooms[i];
-      const px = rng.range(room.x0 + 2.4, room.x1 - 2.4), pz = rng.range(room.z0 + 2.4, room.z1 - 2.4);
+      const mgn = room.chasm ? 5.5 : 2.4; // chasm piles must land IN the pit
+      const px = rng.range(room.x0 + mgn, room.x1 - mgn), pz = rng.range(room.z0 + mgn, room.z1 - mgn);
       const m = new THREE.Mesh(new THREE.ConeGeometry(1.05, 1.2, 5),
         new THREE.MeshLambertMaterial({ color: 0x6b5a3a, emissive: 0x241a08 }));
-      m.position.set(px, baseY + room.floorY + 0.6, pz);
+      // in a chasm hall the scrap fell where everything falls: the pit floor
+      m.position.set(px, baseY + room.floorY + (room.chasm ? -6.5 : 0) + 0.6, pz);
       group.add(m);
       piles.push({ id: `int:${mega.key}:${i}`, x: px, z: pz, mesh: m, room: room.kind, depth: room.floor });
     }

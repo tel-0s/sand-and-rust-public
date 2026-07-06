@@ -4,11 +4,14 @@
 
 export const STEP_UP = 0.45; // how high feet can step/stand without jumping
 
-export function makeBox(x, z, hw, hd, rot, top, standable = false) {
-  return { kind: 'box', x, z, hw, hd, top, standable, cos: Math.cos(rot), sin: Math.sin(rot) };
+// bottom: colliders are solid from bottom..top. The default -Infinity keeps
+// the old tops-without-bottoms world; a finite bottom makes a SURFACE — a
+// bridge, a deck — that can be stood on from above AND walked under.
+export function makeBox(x, z, hw, hd, rot, top, standable = false, bottom = -Infinity) {
+  return { kind: 'box', x, z, hw, hd, top, standable, bottom, cos: Math.cos(rot), sin: Math.sin(rot) };
 }
-export function makeCircle(x, z, r, top = Infinity, standable = false) {
-  return { kind: 'circle', x, z, r, top, standable };
+export function makeCircle(x, z, r, top = Infinity, standable = false, bottom = -Infinity) {
+  return { kind: 'circle', x, z, r, top, standable, bottom };
 }
 
 // world -> box-local (matches GeoBuilder's yaw convention)
@@ -51,10 +54,13 @@ function pushOut(p, radius, c) {
   p.z = c.z - lx * c.sin + lz * c.cos;
 }
 
-// resolve walls: colliders whose top is at/below your feet don't block (you're on them)
+// resolve walls: colliders whose top is at/below your feet don't block
+// (you're on them), and colliders whose bottom clears your head don't
+// block either (you're under them)
 export function resolve(p, radius, feetY, colliders) {
   for (const c of colliders) {
     if (feetY >= c.top - STEP_UP) continue;
+    if (c.bottom !== undefined && c.bottom !== -Infinity && c.bottom - feetY > 2.35) continue;
     pushOut(p, radius, c);
   }
 }
@@ -72,7 +78,7 @@ export function supportY(x, z, feetY, colliders) {
 // is a point inside solid structure? (projectile occlusion)
 export function pointBlocked(x, y, z, colliders) {
   for (const c of colliders) {
-    if (y < c.top && inFootprint(c, x, z, 0.1)) return true;
+    if (y < c.top && (c.bottom === undefined || y > c.bottom) && inFootprint(c, x, z, 0.1)) return true;
   }
   return false;
 }

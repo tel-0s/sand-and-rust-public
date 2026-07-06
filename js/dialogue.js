@@ -75,7 +75,11 @@ export const QUIRK_ADDRESS = ['wanderer', 'sparrow', 'new-boots', 'friend-shape'
 export const QUIRK_TAG = ['so it goes.', 'as the salt keeps us.', 'mind the wind.', 'hm.', 'the well hears.', '—but what do i know.', 'rust willing.', 'count your bolts.'];
 export function decorate(text, npc, rand) {
   if (!npc || !npc.quirk) return text;
-  let t = text.replace(/\bwanderer\b/g, npc.quirk.address);
+  // where the naming story has reached, the desert uses YOUR name —
+  // the epithet rides in on npc._epithet, set at dialogue-open by the
+  // game (which knows what this still knows)
+  const addr = npc._epithet && rand.chance(0.65) ? npc._epithet : npc.quirk.address;
+  let t = text.replace(/\bwanderer\b/g, addr);
   if (rand.chance(npc.quirk.tagChance || 0.3)) t += ' ' + npc.quirk.tag;
   return t;
 }
@@ -207,10 +211,342 @@ function bearingWord(dx, dz) {
   const words = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
   return words[Math.round(a / 45) % 8];
 }
-const MEGA_NOUN = { ring: 'a shattered orbital ring', colossus: 'a fallen colossus', dish: 'a listening array', spire: 'a broken spire' };
+const MEGA_NOUN = { ring: 'a shattered orbital ring', colossus: 'a fallen colossus', dish: 'a listening array', spire: 'a broken spire', launch: 'a launch complex, the ship still on the pad' };
 
 // the still's fortune, worn on the body and spoken aloud — prosperity
 // part-swapping made visible in the mouth as well as the plate
+// tales about the walker: each temperament frames the same story its own way
+const TALE_FRAME = {
+  mercantile: ['they tell it in the markets: {tale}', 'a hauler swore this one is true: {tale}'],
+  scavver: ['word came up the digs: {tale}', 'heard this over a fire: {tale}'],
+  monastic: ['the order keeps an account of you. it reads: {tale}', 'it is written, and weighed: {tale}'],
+  ferrocult: ['the totems already sing it: {tale}', 'we keep this one like a relic: {tale}'],
+};
+export function taleLine(npc, tale, rand) {
+  const pool = TALE_FRAME[npc.temperament] || TALE_FRAME.scavver;
+  return decorate(rand.pick(pool).replaceAll('{tale}', tale.body), npc, rand);
+}
+
+// what the creeds say about what you are becoming (pushed into smalltalk)
+export const EMBRACE_TALK = {
+  ferrocult: {
+    answered: ['you answered it. we heard the choir change key from here.', 'the letter walks. sit by our totem sometime; it leans toward you now.'],
+    bloom: ['the bloom on your plate is the most honest thing in this still.', 'when you pass the totem garden, the blossoms open. the acolytes cry about it. good crying.'],
+    full: ['THE BLOOMING. in our histories you are already a chapter.', 'we do not kneel, as a rule. for you the rule bends.'],
+  },
+  monastic: {
+    answered: ['there is a hum under your hum. scrub, before it learns your name.', 'the salt can still reach it, walker. let it.'],
+    bloom: ['you should not have come. the order counts what you carry.', 'i will not trade words with the letter. leave the wall while walking is still yours.'],
+    full: ['abomination is a strong word. it is the correct one.', 'the guns will speak for the order. i am only telling you which way to run.'],
+  },
+  mercantile: {
+    answered: ['no offense, but your hum is bad for business. the skittish stock notices.', 'whatever you answered, keep it off my ledger.'],
+    bloom: ['rust on the plate, discount on the goods — for you prices run a shade colder.', 'i will still trade. i will just count my fingers after.'],
+    full: ['the Blooming, at MY stall. wait till the route hears this one.'],
+  },
+  scavver: {
+    answered: ['you hum different. no judgment. everything out here hums eventually.', 'answered it, did you? my cousin did too. she is... taller now.'],
+    bloom: ['nice bloom. does it itch? the honest ones always itch.', 'the ferals walk past you like family. that is worth more than plate, some nights.'],
+    full: ['the diggers say the red sand goes quiet where you sleep. spooky. useful, but spooky.'],
+  },
+};
+export const POLISHED_TALK = {
+  monastic: ['not a grain of it on you, and the chassis at full temper. the order sees you, polished one.', 'you are what the rite is FOR. walk proud on the white ground.'],
+  mercantile: ['tier-three head to heel and clean as a ledger day one. you make the rest of us look rented.'],
+  scavver: ['shiniest thing in four regions. try not to stand where the raiders look.'],
+  ferrocult: ['polished. immaculate. sealed. a letter returned unopened — the saddest thing we know.'],
+};
+
+// the town tells its story back: what the keeper built, spoken by the
+// people living inside it — numbers real, tone dry, pride unmistakable
+const STAKE_PRIDE = [
+  'you know {keeper} funded this wall out of their own salvage? i lean on it sometimes just to feel expensive.',
+  '{held} raids broke on that wall. i counted. counting is most of my job.',
+  'my cousin says no town gathers people out of the open sand. we have {settlers} who walked in ON PURPOSE. tell your cousin.',
+  'the keeper sleeps here, same well as anybody. that is the whole speech about this place, really.',
+  'we are worth robbing now. the yard is strangely proud of that.',
+];
+export function stakePrideLine(npc, pride, rand) {
+  let line = rand.pick(STAKE_PRIDE)
+    .replaceAll('{keeper}', pride.keeper)
+    .replaceAll('{held}', String(pride.held))
+    .replaceAll('{settlers}', String(pride.settlers));
+  return decorate(line, npc, rand);
+}
+
+// the desert talks about its weather the way anyone does: constantly
+const SEASON_TALK = {
+  clear: [
+    'the clear, at last. the bells run early and the prices run kind. it will not last. enjoy it like it will.',
+    'trading season. even the wardens smile, which frightens the children.',
+    'sky like hammered brass and not a storm in it. somebody up there forgot about us, praise be.',
+  ],
+  veil: [
+    'the veil is on us. i tie a rope from my door to the well and trust nothing else.',
+    'three storms this week and the week is young. the compass has been lying since the turn.',
+    'veil season. the haulers double their prices and honestly, watching the sky, fair enough.',
+  ],
+  glasswind: [
+    'glass-wind season — you hear it coming, like the desert dragging a knife along itself. get indoors.',
+    'my cousin lost half her plating to a shard squall. the glitter after is pretty. she says it is NOT worth it.',
+    'when the wind goes green at the edges, stop walking. that is the whole wisdom of the season.',
+  ],
+  longcold: [
+    'the long cold. the nights chew through a power cell like it owes them. keep to the fires.',
+    'lean season. the machines get hungry and so does everything else. the wall-watch doubles.',
+    'cold enough at night to hear your own joints think. spring for a fire. spring for two.',
+  ],
+};
+
+const HERD_TALK = [
+  'the herd is due through here inside two days. tie down anything that rolls; they do not go around.',
+  'you can hear them before you see them — a hundred feet agreeing on a direction. the herd is coming.',
+  'herd season for this stretch. the caravans will wait at the crossings, and the wise wait with them.',
+];
+
+// THE MARCH: a massing front owns every conversation within earshot of it
+const WAR_TALK = [
+  'the nests out by {wstill} are waking together. TOGETHER. they never used to know that word.',
+  'a front masses against {wstill}. {wdays} more day(s) of brood-song, they say, and then it walks.',
+  'you can hear it at night when the wind sits right — every nest on one key. {wstill} hears it loudest.',
+  'my cousin ran the {wstill} road. ran. the past tense is the whole report.',
+  'they say if enough hearts go quiet before the march, the waking dies with them. somebody with a good arm should be out there counting.',
+];
+const WAR_HERE_TALK = [
+  'the watch doubles at dusk now. the brood-song is OUR name this time.',
+  'we oil the wall-guns and we do not talk about the counting. {wdays} day(s).',
+  'some of the young ones want to go out and break the nests before the march comes. some of the old ones went.',
+  'the well keeps a list of everyone who is staying. it is the whole town. that is the kind of place this is.',
+];
+// the column is on the ground: rumor turns from arithmetic to sightings
+const WAR_MARCH_TALK = [
+  'the column is ON THE GROUND. it walks for {wstill} behind a heart-engine the size of a granary.',
+  'you can see its dust from the ridge, they say. a straight line with no hurry in it, aimed at {wstill}.',
+  'break the heart-engine and the whole thing forgets why it came. easy to say from behind a wall.',
+  'a caravaneer counted the escort through a scope and stopped counting. that was the report. stopped counting.',
+];
+
+// THE STATIC: the yard saw you step out of the well, and has opinions
+const TX_TALK = {
+  any: [
+    'you stepped out of the WELL, walker. saw it with my own optics. the old doors still open for you.',
+    'the hum is still on you. give it an hour before you go shaking hands.',
+    'my grandmother said people used to arrive that way every day, whole crowds of them. she said it like a warning.',
+    'one moment the well is a well, the next it is a DOOR and you are in it. warn a soul next time.',
+  ],
+  monastic: [
+    'the well is for water and the keeping of names. what you did with it is neither. we will speak of this at the rite.',
+    'every ride leaves a little of you in the line, walker. the salt cannot scour what the wire keeps.',
+  ],
+  ferrocult: [
+    'you RODE the lattice. the letter rides with you — did you feel it press closer? the totem is jealous tonight.',
+    'the line keeps its tithe, and the Rust keeps everything it is given. what you call travel, we call correspondence.',
+  ],
+  scavver: ['cheaper than feet, they say. NOTHING is cheaper than feet.'],
+  mercantile: ['if the wells carry walkers again, they can carry FREIGHT. do you know what that does to hauling rates? sit down. we should talk.'],
+};
+// and past a few rides, the hum never quite leaves your signal
+const RIDER_TALK = [
+  'they say some walkers ride the lines so often the wells greet them by wave-shape. they say it QUIETLY.',
+  'you have the look of someone the lattice knows. that is not a compliment everywhere, walker.',
+];
+
+// THE ROAD TALK (THE COMPANY b2): the one who walks with you has
+// opinions, and the road is long. Keyed by context; a voice per
+// temperament where it matters; paced to season, never flood.
+export const BANTER = {
+  idle: {
+    any: [
+      'my feet do not get tired. i checked the manual twice. so what is this, then.',
+      'if you sing, i will also sing, and neither of us wants that. noted? noted.',
+      'i count the dunes some days. the number changes. i have decided not to think about it.',
+      'you walk like you know where we are going. i have decided to find that comforting.',
+      'quiet out. the good kind, for once.',
+      'i had a dream standing up yesterday. machines are not supposed to do that. it was about doors.',
+    ],
+    scavver: [
+      'that ridge line looks like salvage. every ridge line looks like salvage. this is a sickness and i am at peace with it.',
+      'rule of the road: if it glints twice, it is worth the detour. if it glints once, it is teeth.',
+    ],
+    mercantile: [
+      'i keep a running tally of what this trip costs against what it might pay. do not ask for the current figure.',
+      'every still we pass and do not trade at is a small grief. i carry many small griefs.',
+    ],
+    monastic: [
+      'walking is a rite too, you know. the shortest one with the longest name. i forget the name.',
+      'i miss the bells. any bells. even the warning kind, a little, which i will deny saying.',
+    ],
+    ferrocult: [
+      'the ground hums different out here. older letters. do not worry, i am only listening.',
+      'you never ask what the totem said to me. i respect that. it said INTERESTING things.',
+    ],
+  },
+  biome: {
+    rustlands: [
+      'red sand. keep your seams shut and your mouth shutter too. i have seen what breathing it does.',
+      'the ground here is not sleeping. walk like a guest.',
+    ],
+    salt: [
+      'the white ground. everything goes quiet here — even the letter, they say. enjoy the silence; it is rented.',
+      'salt in my joints for a week after this. worth it. the pans are the closest thing the desert has to mercy.',
+    ],
+    flats: [
+      'scrap flats. every step is somebody’s old roof. walk respectful; scavenge thorough.',
+    ],
+    dunes: [
+      'dunes. my least favorite arithmetic: two steps up, one step down, repeat until philosophy.',
+      'somewhere under all this sand is the road they built. somewhere under the road is another road. try not to think about it.',
+    ],
+    city: [
+      'buried streets. people STOOD here, queueing for things. bread, maybe. permits. i think about the permits.',
+      'watch the high floors. things nest where the view is good — that part of the world never changed.',
+    ],
+    glass: [
+      'glass country. step where i step, or we will both be picking shards out of your shins and only one of us will find it funny.',
+    ],
+  },
+  storm: [
+    'storm coming up. i can feel it in the arm you gave me. the storm can probably feel the arm too. everybody wins.',
+    'head down, walker. the sand does not hate us, but it does not know our names either.',
+    'i will stand on your wind side. do not read anything into it.',
+  ],
+  shard: [
+    'GLASS ON THE WIND — cover, now, and i am not asking.',
+    'shard weather. whoever calls this a season has never stood in it.',
+  ],
+  coldnight: [
+    'cold enough to slow the mind. talk to me so i know yours is still turning.',
+    'the long cold. my joints sound like an argument. do not laugh. you are humming too.',
+  ],
+  war: [
+    'you hear that? that is not wind. that is a lot of things agreeing with each other. i hate it.',
+    'if we are going TOWARD the war, i want it noted that i noticed, and came anyway.',
+  ],
+  stillArrive: [
+    'walls and a well. my standards have simplified beautifully out here.',
+    'let me do the talking at the market. no offense. some offense.',
+    'smell that? forge-smoke and stew. civilization is mostly those two things and i have missed both.',
+  ],
+  home: [
+    'this is my old yard, you know. that post there — i held it four years. it has not been swept since. i am fine. it is fine.',
+    'careful what you say about this place in front of me. only i get to say it.',
+  ],
+  hollow: [
+    'a hollow place. wind dies at the door — you noticed? everything in here has been waiting a long time. try not to be what it was waiting FOR.',
+    'i will watch behind us. that is not an offer, it is a policy.',
+    'people made this. people made most of the terrible beautiful things.',
+  ],
+  deepRoom: [
+    'deep room. last floor. whatever is kept here was worth stairs. stairs, walker.',
+  ],
+  corruption: [
+    'the letter is loud in you today. i can hear it when you idle. do what you need to do — i will still be here, either way. that is the whole arrangement.',
+    'your eyes are doing the thing again. the red thing. drink some salt when we next can, or do not — but KNOW you are doing the thing.',
+  ],
+  static: [
+    'you stepped out of a WELL. i watched a wall of water learn your face and give it back. i am going to need a minute.',
+    'the hum is still on you from the ride. it is like walking next to a kettle that is thinking.',
+  ],
+  lowHull: [
+    'you are leaking, walker. visibly. as your second opinion: patch it.',
+    'do not fall over out here. i have carried you before in a manner of speaking and the manner was undignified.',
+  ],
+  dawn: [
+    'dawn. the desert pretends to be kind for about an hour. take it personally; it is the only way to enjoy it.',
+    'another one. we keep getting these. i have decided it is a good sign.',
+  ],
+  want: {
+    place: ['we are still not going toward {target}, i notice. noticing is all i am doing. loudly.'],
+    nest: ['{target} still beats. i can feel it some nights, like a splinter with a schedule.'],
+    ride: ['any well would do, you know. for the watching. whenever the roads allow.'],
+    deep: ['every hollow we pass, i think: maybe this one has our stairs in it.'],
+    storm: ['glass season will come around again. i keep the want oiled.'],
+  },
+  wantLate: [
+    'the want does not spoil, walker. but i do wonder, some mornings, whose route this is.',
+    'i have started dreaming about it standing up again. that is usually my sign to do something myself.',
+  ],
+  sworn: [
+    'you answered the want. i do not forget things like that. i do not forget ANYTHING, technically, but you know what i mean.',
+    'walk wherever you like today. i have already been where i needed to go.',
+  ],
+  // THE SECOND CHAIR: two voices, one road — they talk to each other
+  duo: [
+    ['{other}. settle something. dunes: worse going up, or worse going down.', 'worse going ON, is the answer nobody likes. next question.'],
+    ['i had a home once, you know. walls. a post i held.', 'we all had a once, {other}. that is what the walking is FOR.'],
+    ['if the walker falls over out here, i am not carrying the legs. i am saying it now.', 'you take the legs. i carried the legs at the crossing and one of them kicked.'],
+    ['do you hear the wells humming, some nights?', 'everyone hears it. the trick is not answering. drink your salt.'],
+    ['the stories have both our names in them now. stitched to the walker’s.', 'then walk taller. stories check their sources.'],
+  ],
+};
+// one line in the pool — the legend seasons, it never shouts
+// THE WANT (THE COMPANY b4): every companion carries one thing they need
+// from the road — stated when asked, voiced when neglected, and answered,
+// if you will walk that way
+export const WANT_SAY = {
+  place: 'there is a place — {target}. my people swore the well there sings at dusk, and i have never once heard it. i am not asking you to change the route. i am telling you the route i would change it TO.',
+  nest: 'the nest they call {target}. it took someone from me, back before i knew you. i want to stand there when its heart goes dark. that is the whole want. i have carried it a long time and it does not get lighter.',
+  ride: 'i want to watch you ride the lattice. up close. i want to see the well take you and give you back somewhere else. everyone describes it wrong and i want to describe it wrong FIRSTHAND.',
+  deep: 'i have never stood in a deep room. the last floor, where the old world kept what it could not say out loud. take me down sometime. i will watch the stairs behind us.',
+  storm: 'i want to stand in the glass-wind once — sheltered, alive, but IN it. my grandmother did it and never shut up about it. i intend to inherit the not shutting up.',
+};
+export const WANT_DONE = {
+  place: 'the well DOES sing. slightly flat. do not tell anyone i cried a little, because machines cannot, so it will be a confusing rumor.',
+  nest: 'dark. finally dark. i thought it would feel bigger. it feels — quiet. thank you, walker. i mean it in the oldest way the word works.',
+  ride: 'you were THERE and then you were GONE and the water just — closed. everyone does describe it wrong. it is worse and better. i will be telling this for years.',
+  deep: 'so this is the last floor. it is smaller than the stories and heavier than the stairs. i am glad i saw it. i am gladder we are leaving.',
+  storm: 'i STOOD IN IT. grandmother, wherever your chassis rests — i inherit the not shutting up.',
+};
+
+// THE JOINT LEDGER: the yards notice who walks beside you — quietly,
+// and only where the shared stories have actually reached
+const COMPANION_TALK = [
+  'that is {cname} walking with you, is it not? the stories put you two together. good. the desert is kinder in pairs.',
+  '{cname}. we know that name here — it arrives stitched to yours now.',
+  'the two of you match the telling. taller, though. stories always shrink people to fit around fires.',
+];
+const COMPANION_EP_TALK = [
+  'so that is {cname} {cep}, in the plating. the name got here a week before the two of you did.',
+];
+
+const CHOICE_TALK = {
+  carried: [
+    'they say a walker went down to the root of the wells and came back up carrying an OLD-WORLD name. imagine wanting one of those back.',
+    'a walker took their intake name back, down at the root. the ferro-cult says the line sings differently around them now. cheaper, anyway.',
+  ],
+  walker: [
+    'they say a walker found their own intake record at the root of the wells — and gave the name BACK. left it with the dead, where it was resting.',
+    'somebody read the oldest file in the desert and signed it "the walker." i do not know if that is humility or the largest boast i ever heard.',
+  ],
+  erased: [
+    'they say a walker burned their own intake record at the root. unread. the monks call it immaculate. the cult will not say the walker’s name at all now — any of them.',
+    'one less name in the third series, and the one who erased it chose to be nobody twice. that is either the saddest or the freest thing i know.',
+  ],
+};
+
+// THE TIDE: after a campaign, the aftermath owns the smalltalk for days
+const WAR_AFTER_TALK = {
+  held: [
+    'the wall at {wstill} held the whole march. wave after wave. they are rebuilding the watch roster out of VOLUNTEERS now.',
+    'you hear about {wstill}? the front spent itself on their wall. the desert argued, and lost, for once.',
+    'they rang the bells at {wstill} until noon the day after. not warning bells. the other kind.',
+  ],
+  sacked: [
+    'they say {wstill} is smaller now. the march went over the wall. light a lamp when you pass.',
+    'the war took a bite out of {wstill}. what stands can be raised again — that is not comfort, that is instructions.',
+    'refugees from {wstill} came through with what they could carry. the well there still draws. that is where the rebuilding starts.',
+  ],
+  broken: [
+    'the front near {wstill} died before it marched. somebody hunted the waking out of the nests, heart by heart.',
+    'all those nests singing one key, and then — nothing. the quiet after is the loudest thing i ever heard.',
+  ],
+  column: [
+    'the column for {wstill} is slag on the road. the heart-engine fell and the escorts forgot the word together.',
+    'they met the war on the OPEN ROAD and broke it. the wall never fired. that story buys drinks for a year.',
+  ],
+};
+WAR_AFTER_TALK.stood = WAR_AFTER_TALK.held; // old ledgers use the old word
+
 const THRIVING_TALK = [
   'new plate this season. the roads paid for it — feel the weight of me.',
   'everyone here is wearing fresh salvage. good years put armor on backs.',
@@ -238,6 +574,54 @@ export function smalltalk(npc, rand, ctx) {
   if (ctx.landmark) pool.push(...LANDMARK_TALK);
   if (ctx.stage > 0) pool.push(...THRIVING_TALK, ...THRIVING_TALK);
   if (ctx.stage < 0) pool.push(...LEAN_TALK, ...LEAN_TALK);
+  // what you are becoming is on everyone's tongue
+  if (ctx.embraceState) {
+    const et = (EMBRACE_TALK[npc.temperament] || {})[ctx.embraceState];
+    if (et) pool.push(...et, ...et);
+  }
+  if (ctx.polished) {
+    const pt = POLISHED_TALK[npc.temperament];
+    if (pt) pool.push(...pt);
+  }
+  if (ctx.season && SEASON_TALK[ctx.season]) pool.push(...SEASON_TALK[ctx.season]);
+  if (ctx.herdDue) pool.push(...HERD_TALK, ...HERD_TALK);
+  if (ctx.warFront) {
+    const wt = ctx.warFront.marching ? WAR_MARCH_TALK
+      : ctx.warFront.here ? [...WAR_HERE_TALK, ...WAR_TALK] : WAR_TALK;
+    const lines = wt.map(l => l
+      .replaceAll('{wstill}', ctx.warFront.still)
+      .replaceAll('{wdays}', String(ctx.warFront.days)));
+    // a war drowns out the weather — and at the threatened still itself,
+    // it IS the weather: souls preparing for a march talk of little else
+    const weight = ctx.warFront.here ? 4 : 2;
+    for (let i = 0; i < weight; i++) pool.push(...lines);
+  }
+  if (ctx.txArrived) {
+    const tt = [...TX_TALK.any, ...(TX_TALK[npc.temperament] || [])];
+    pool.push(...tt, ...tt); // an arrival by wire is the morning's whole news
+  }
+  if (ctx.txRider && !ctx.txArrived) pool.push(...RIDER_TALK);
+  if (ctx.lifeChoice && CHOICE_TALK[ctx.lifeChoice]) pool.push(...CHOICE_TALK[ctx.lifeChoice]);
+  if (ctx.companion && ctx.companion.known) {
+    const ct = [...COMPANION_TALK, ...(ctx.companion.epithet ? COMPANION_EP_TALK : [])];
+    pool.push(...ct.map(l => l
+      .replaceAll('{cname}', ctx.companion.name)
+      .replaceAll('{cep}', ctx.companion.epithet || '')));
+  }
+  if (ctx.warAfter && WAR_AFTER_TALK[ctx.warAfter.outcome]) {
+    const at = WAR_AFTER_TALK[ctx.warAfter.outcome].map(l => l.replaceAll('{wstill}', ctx.warAfter.still));
+    pool.push(...at, ...(ctx.warAfter.here ? at : [])); // at the wall itself, it's all anyone says
+  }
+  if (ctx.stakePride && (ctx.stakePride.held > 0 || ctx.stakePride.settlers > 0 || ctx.stakePride.works >= 3)) {
+    // guard the templates that need real numbers
+    const ok = STAKE_PRIDE.filter(l =>
+      (!l.includes('{held}') || ctx.stakePride.held > 0) &&
+      (!l.includes('{settlers}') || ctx.stakePride.settlers > 0));
+    pool.push(...ok.map(l => l
+      .replaceAll('{keeper}', ctx.stakePride.keeper)
+      .replaceAll('{held}', String(ctx.stakePride.held))
+      .replaceAll('{settlers}', String(ctx.stakePride.settlers))));
+  }
   const bare = (ctx.region || '').replace(/^the\s+/i, '');
   let line = rand.pick(pool).replaceAll('{region}', bare);
   if (ctx.mega) line = line.replaceAll('{megaName}', ctx.mega.name).replaceAll('{megaDir}', ctx.mega.dir);
@@ -404,6 +788,8 @@ const EVENT_LINES = {
     '{name} buried their own after the last raid. light a lamp when you pass.'],
   nest: ['someone broke the heart of {name} — the printworks, the ugly one. the night patrols sleep easier.',
     'word is {name} has gone quiet. whoever slagged that core drinks free at any fire i tend.'],
+  front: ['they say the nests woke together against {name}, and somebody broke the waking before it walked. heart by heart. that is a NEW kind of story.',
+    'the front against {name} died on the ground it rose from. the roads are already arguing over who did the quieting.'],
 };
 export function eventLine(npc, event, rand) {
   return rand.pick(EVENT_LINES[event.t] || EVENT_LINES.found).replace('{name}', event.name);

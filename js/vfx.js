@@ -57,6 +57,21 @@ export class VFX {
   }
 
   // straight beam (thermal lance)
+  // RUSTSIGHT: a small rust diamond that sings through walls, rises, fades
+  rustsight(at) {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.34),
+      new THREE.MeshBasicMaterial({ color: 0xff5a2a, transparent: true, opacity: 0.85, depthTest: false }));
+    m.position.set(at.x, at.y, at.z);
+    m.renderOrder = 999;
+    this.scene.add(m);
+    const y0 = at.y;
+    this.live.push({ mesh: m, t: 0, dur: 2.2, tick: (fx, k) => {
+      fx.mesh.position.y = y0 + k * 1.2;
+      fx.mesh.rotation.y = k * 7;
+      fx.mesh.material.opacity = 0.85 * (1 - k);
+    } });
+  }
+
   beam(from, dir, { length = 40, color = 0xff8855, dur = 0.22, radius = 0.12 } = {}) {
     const geo = new THREE.CylinderGeometry(radius, radius, length, 6);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, opacity: 0.8 }));

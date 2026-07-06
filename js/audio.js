@@ -171,8 +171,11 @@ export class AudioEngine {
     // the choir: audible from ~20 corruption, undeniable by 80
     const c = Math.max(0, (s.corruption - 15) / 85);
     this._ease(this.choirGain.gain, Math.pow(c, 1.6) * 0.11, dt, 1.5);
+    // an answered letter resolves the choir: the detune collapses toward
+    // consonance — the same voices, no longer arguing
+    const dis = s.answered ? 0.22 : 1;
     for (let i = 0; i < this.choir.length; i++) {
-      this.choir[i].detune.value = Math.sin(performance.now() / (700 + i * 310) + i * 2) * (8 + c * 30);
+      this.choir[i].detune.value = Math.sin(performance.now() / (700 + i * 310) + i * 2) * (8 + c * 30) * dis;
     }
 
     // field hum

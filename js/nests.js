@@ -90,12 +90,14 @@ export class NestManager {
         if (this.hooks.onDestroyed) this.hooks.onDestroyed(rec.info);
         continue;
       }
-      // brood: keep up to 3 patrol machines while the core beats
+      // brood: keep up to 3 patrol machines while the core beats — 5, and
+      // faster, while the nest feeds a massing front (THE MARCH)
+      const pressed = !!(this.hooks.warNest && this.hooks.warNest(key));
       rec.spawnT -= dt;
       if (rec.spawnT <= 0 && d < 300) {
-        rec.spawnT = 11;
+        rec.spawnT = pressed ? 7 : 11;
         const alive = enemies.enemies.filter(e => e.homeNest === key && !e.def.stationary).length;
-        if (alive < 3) {
+        if (alive < (pressed ? 5 : 3)) {
           const a = Math.random() * Math.PI * 2, r = 25 + Math.random() * 40;
           const kind = Math.random() < 0.5 ? 'rustform' : (Math.random() < 0.5 ? 'dervish' : 'scrabbler');
           enemies.spawnAt(kind, rec.info.x + Math.sin(a) * r, rec.info.z + Math.cos(a) * r,

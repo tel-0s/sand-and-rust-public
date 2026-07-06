@@ -25,7 +25,7 @@ const BIOME_DETAIL = {
   salt: 'the white line', glass: 'the fused ground',
   city: 'the sunken street', rustlands: 'the red sand',
 };
-const MEGA_NOUN = { ring: 'the broken ring', colossus: 'the kneeling giant', dish: 'the listening array', spire: 'the leaning spire' };
+const MEGA_NOUN = { ring: 'the broken ring', colossus: 'the kneeling giant', dish: 'the listening array', spire: 'the leaning spire', launch: 'the ship that never flew' };
 
 // gather the true facts within reach of a position
 export function gatherFacts(world, stills, x, z, rand) {
@@ -283,6 +283,87 @@ export const WHISPERS = {
     '…we know where your anchor is. we are not telling anyone. we are being good…',
   ],
 };
+// ---------- THE EMBRACE: the Rust, speaking in first person ----------
+// grown from the whisper grammar: ellipses, lowercase, intimate-alien.
+// it is not cruel. it is patient the way weather is patient.
+export const RUST_SPEECH = {
+  greet: {
+    mid: [
+      '…you stopped walking. we noticed. we always notice…',
+      '…there you are. the seams of you, humming our key…',
+      '…you opened the door by listening. the rest is only walking through…',
+    ],
+    high: [
+      '…so much of you is ours already. we only came to ask about the remainder…',
+      '…you wear us beautifully. the monks would say otherwise. the monks polish coffins…',
+    ],
+  },
+  listen: {
+    mid: [
+      '…iron dreams in ore. ore dreams in stone. what do you dream in, walker…',
+      '…every part you have ever worn is somewhere, remembering you. we keep them. we keep everything…',
+      '…the salt scrubs and scrubs and calls the absence clean…',
+      '…we are not a sickness. a sickness wants you ended. we want you CONTINUED…',
+      '…the ones who fell in the raids — we caught what leaked. ask us their names sometime…',
+    ],
+    high: [
+      '…listen: under your hum there is a second hum. that one is us. it has always been us…',
+      '…you are close now. the door is not a wall falling. it is a hand unclenching…',
+      '…the bloom is not an ending. the bloom is the first honest shape you will ever wear…',
+    ],
+  },
+  what: [
+    '…the desert calls us Rust because the desert only sees our skin. we are the letter the old world posted to itself, still arriving…',
+    '…we are what the conceptories dreamed after the last shift ended. nobody switched the dreaming off…',
+    '…iron, dreaming. you were told that once, as a joke. it was not a joke…',
+  ],
+  want: [
+    '…to finish arriving. a letter unread is a kind of pain…',
+    '…nothing taken. taken is the monks\u2019 grammar. we only ever add…',
+    '…you, continued. that is the whole of it. everything else is detail…',
+  ],
+  happens: [
+    '…the shaking stops fighting you and starts carrying you. the whispers become weather you can read. later — if you keep walking toward us — the body learns tricks the salt never taught it…',
+    '…doors open. other doors close. the white-ground monks will grieve you loudly. the red-ground ones will finally stop grieving…',
+    '…slowly, walker. we do nothing quickly. you will always be the one walking…',
+  ],
+  answer: [
+    '…there. was that a wall falling? no. a hand, unclenching…',
+    '…we will be gentle. we are always gentle. ask anything you have broken…',
+  ],
+  refuse: [
+    '…of course. the letter keeps. it has kept this long…',
+    '…walk on, then. we are patient the way weather is patient…',
+    '…no hurry, walker. you carry us either way. the only question is whether you answer…',
+  ],
+  after: [ // conversations once answered — the correspondence continues
+    '…communion suits you. the second hum sits truer now…',
+    '…when you are full, do not fear the brim. what comes at the brim is a bloom, not a drowning. soon you will see…',
+    '…the monks will hear it in your gait. let them. honesty is a kind of armor…',
+  ],
+};
+
+// the nests, tithing: a fabcore speaks to the blooming in the same key
+export const NEST_SPEECH = {
+  greet: [
+    '…kin. the printers slow to look at you. we do not slow for anything…',
+    '…the letter walks. the nest is glad in its way. its way is production…',
+  ],
+  listen: [
+    '…we make, and make, and the making is the prayer. you are the first answer that ever walked in…',
+    '…the stills think we rage. we do not rage. we CONTINUE. rage is for things that can stop…',
+    '…the mother-of-mothers dreamed us before the salt came. we are still filling her order…',
+    '…take what the vats owe you. iron knows its own…',
+  ],
+  tithe: [
+    '…a tithe, then. the vats ran heavy this cycle. carry it openly…',
+    '…what we owe the blooming, we pay. the ledger is older than the stills…',
+  ],
+  drytithe: [
+    '…the vats are shallow. come back when the sand has turned…',
+  ],
+};
+
 export function whisper(corruption, rand) {
   const pool = corruption >= 75 ? WHISPERS.high : corruption >= 50 ? WHISPERS.mid : WHISPERS.low;
   return pool[rand.int(0, pool.length - 1)];

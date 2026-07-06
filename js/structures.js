@@ -83,6 +83,105 @@ export function addBuilding(gb, rng, x, groundY, z, scale = 1) {
   ];
 }
 
+// ---- A tower torn open: the cutaway ruin. One face is gone — floor decks
+// hang exposed, rebar prickles from every broken edge, rubble skirts the
+// opening. The remaining walls are real (colliders), so the ground floor
+// is a room the desert moved into. Verisimilitude via seeing past the
+// surface layer — and sometimes something worth taking, further in. ----
+export function addCutawayBuilding(gb, rng, x, groundY, z, scale = 1) {
+  const floors = rng.int(2, 4);
+  const w = rng.range(8, 13) * scale, d = rng.range(8, 13) * scale;
+  const rotY = rng.range(0, Math.PI * 2);
+  const bury = rng.range(1.5, 5) * scale;
+  const y0 = groundY - bury;
+  const sideFrac = rng.range(0.55, 0.8); // how much of each flank survived
+  const cos = Math.cos(rotY), sin = Math.sin(rotY);
+  const W = (lx, lz) => [x + lx * cos + lz * sin, z + -lx * sin + lz * cos];
+  const colliders = [];
+  const wallT = 0.6;
+  let y = y0, topY = y0;
+  const fhs = [];
+  for (let f = 0; f < floors; f++) { fhs.push(rng.range(3.8, 5.4) * scale); topY += fhs[f]; }
+  const H = topY - y0;
+
+  // back wall (full) and the two bitten flanks — dark, shadowed concrete
+  const [bwx, bwz] = W(0, -d / 2 + wallT / 2);
+  gb.addBox(bwx, y0 + H / 2, bwz, w, H, wallT, vary(rng, CONCRETE_D), rotY);
+  colliders.push(makeBox(bwx, bwz, w / 2, wallT / 2 + 0.1, rotY, topY, true));
+  const sideLen = d * sideFrac;
+  for (const sx of [-1, 1]) {
+    const [swx, swz] = W(sx * (w / 2 - wallT / 2), -d / 2 + sideLen / 2);
+    gb.addBox(swx, y0 + H / 2, swz, wallT, H, sideLen, vary(rng, CONCRETE), rotY);
+    colliders.push(makeBox(swx, swz, wallT / 2 + 0.1, sideLen / 2, rotY, topY, true));
+    // vertical rebar where the flank tore
+    const [rx, rz] = W(sx * (w / 2 - wallT / 2), -d / 2 + sideLen);
+    for (let i = 0; i < 2; i++) {
+      gb.addBox(rx, y0 + H - i * 1.3 - 0.4, rz, 0.07, rng.range(0.9, 1.6), 0.07, RUSTMETAL, rotY, rng.range(-0.35, 0.35));
+    }
+  }
+  // exposed floor decks — STANDABLE now: colliders with real bottoms hold
+  // your weight from above and let you walk the room beneath
+  y = y0;
+  let firstDeck = null;
+  for (let f = 0; f < floors; f++) {
+    y += fhs[f];
+    const deckD = d * rng.range(0.82, 0.96);
+    const [dxc, dzc] = W(0, -d / 2 + deckD / 2);
+    gb.addBox(dxc, y - 0.25, dzc, w - wallT, 0.5, deckD, vary(rng, f === floors - 1 ? CONCRETE : CONCRETE_D), rotY);
+    // the first deck only becomes solid when the room beneath keeps real
+    // headroom — a half-buried squat floor stays visual, so the walk-in
+    // promise of the cutaways survives its own upgrade
+    const solid = f > 0 || y - groundY >= 3.0;
+    if (solid) colliders.push(makeBox(dxc, dzc, (w - wallT) / 2, deckD / 2, rotY, y, true, y - 0.5));
+    if (solid && !firstDeck) firstDeck = { y, deckD };
+    // rebar prickling from the broken deck edge
+    const nRods = rng.int(3, 5);
+    for (let i = 0; i < nRods; i++) {
+      const lx = rng.range(-w / 2 + 1, w / 2 - 1);
+      const [rx2, rz2] = W(lx, -d / 2 + deckD + rng.range(-0.2, 0.4));
+      gb.addBox(rx2, y - 0.15 + rng.range(0, 0.3), rz2, 0.07, rng.range(0.7, 1.4), 0.07, RUSTMETAL,
+        rotY + rng.range(-0.3, 0.3), rng.range(0.6, 1.4) * (rng.chance(0.5) ? 1 : -1));
+    }
+    // a dark utility box or door-shadow against the back wall, some floors
+    if (rng.chance(0.5)) {
+      const [ux, uz] = W(rng.range(-w / 3, w / 3), -d / 2 + wallT + 0.7);
+      gb.addBox(ux, (f === 0 ? groundY : y - fhs[f]) + 0.8, uz, rng.range(1, 1.8), 1.6, 1.2, [0.1, 0.09, 0.08], rotY);
+    }
+  }
+  // a rubble stair climbs one torn flank to the first exposed deck —
+  // true verticality: the decks are yours if you take the climb
+  const climb = firstDeck ? firstDeck.y - groundY : 0;
+  const nSteps = Math.ceil(climb / 0.42);
+  const runL = nSteps ? Math.min(1.1, (d + 2) / nSteps) : 0; // spread along the flank
+  if (firstDeck && climb >= 1.6 && climb < 8.5 && runL >= 0.6 && rng.chance(0.65)) {
+    const sx = rng.chance(0.5) ? -1 : 1;
+    for (let k = 1; k <= nSteps; k++) {
+      const top = groundY + (k / nSteps) * climb;
+      const lz = d / 2 + 1.2 - (k - 0.5) * runL; // marching inward along the flank
+      const [kx, kz] = W(sx * (w / 2 - 1.1), lz);
+      const stepH = Math.max(0.4, top - groundY);
+      gb.addBox(kx, top - stepH / 2, kz, rng.range(1.6, 2.3), stepH, 1.1, vary(rng, CONCRETE_D, 0.05), rotY + rng.range(-0.1, 0.1));
+      colliders.push(makeBox(kx, kz, 1.0, Math.max(0.55, runL / 2 + 0.1), rotY, top, true));
+    }
+  }
+  // rubble skirting the torn-open face
+  const nRub = rng.int(2, 4);
+  for (let i = 0; i < nRub; i++) {
+    const lx = rng.range(-w / 2, w / 2), lz = d / 2 + rng.range(0.5, 4);
+    const [rx3, rz3] = W(lx, lz);
+    const rs = rng.range(0.7, 1.7);
+    gb.addBox(rx3, groundY + rs * 0.25, rz3, rs * 1.3, rs * 0.8, rs, vary(rng, CONCRETE_D), rng.range(0, 3), rng.range(-0.15, 0.15));
+    if (rs > 1.1) colliders.push(makeCircle(rx3, rz3, rs * 0.6, groundY + rs * 0.55, true));
+  }
+  // sometimes the desert left something inside
+  if (rng.chance(0.45)) {
+    const [px, pz] = W(rng.range(-w / 4, w / 4), rng.range(-d / 6, d / 4));
+    const c = addScrapPile(gb, rng, px, groundY, pz);
+    if (c) colliders.push(c);
+  }
+  return colliders;
+}
+
 // ---- Dead crawler / wreck hull (salvage target) ----
 export function addWreckGeo(gb, rng, x, groundY, z) {
   const rotY = rng.range(0, Math.PI * 2);
@@ -181,6 +280,62 @@ export function buildMegastructure(type, rng, groundYFn) {
       colliders.push({ x: px, z: pz, r: 3.5 });
     }
     radius = 80;
+  } else if (type === 'launch') {
+    // a launch complex: the pad, the gantry, and a ship that never flew.
+    // colliders here may carry {top, standable} — the pad is walkable.
+    const padR = rng.range(48, 62);
+    gb.addBox(0, 0.19, 0, padR * 2, 0.38, padR * 2, vary(rng, CONCRETE, 0.03), rng.range(0, 0.4));
+    gb.addBox(0, 0.41, 0, padR * 0.9, 0.06, padR * 0.9, [0.16, 0.14, 0.12], rng.range(0, 0.4)); // scorch
+    colliders.push({ x: 0, z: 0, r: padR * 1.05, top: 0.44, standable: true });
+    const shipR = rng.range(7.5, 10.5), shipH = rng.range(85, 130);
+    const fell = rng.chance(0.35);
+    if (!fell) {
+      // still on the pad, aimed at a sky that stopped answering
+      gb.addBox(0, 0.4 + shipH * 0.5, 0, shipR * 2, shipH, shipR * 2, vary(rng, METAL, 0.04), rng.range(0, 0.5), rng.range(-0.015, 0.015));
+      gb.addBox(0, 0.4 + shipH * 1.08, 0, shipR * 1.3, shipH * 0.18, shipR * 1.3, vary(rng, CONCRETE_D), rng.range(0, 0.5)); // nose fairing
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + 0.3;
+        gb.addBox(Math.cos(a) * shipR * 1.25, 8, Math.sin(a) * shipR * 1.25, 1.1, 15, 8.5, vary(rng, RUSTMETAL), -a);
+      }
+      colliders.push({ x: 0, z: 0, r: shipR * 1.9 });
+    } else {
+      // it fell across its own pad an age ago and broke into thirds
+      const fa = rng.range(0, Math.PI * 2);
+      const dx = Math.cos(fa), dz = Math.sin(fa);
+      let run = shipR * 1.6;
+      for (let i = 0; i < 3; i++) {
+        const segL = shipH * rng.range(0.22, 0.32);
+        const px = dx * (run + segL / 2), pz = dz * (run + segL / 2);
+        gb.addBox(px, shipR * rng.range(0.7, 0.95), pz, segL, shipR * 1.7, shipR * 1.8,
+          vary(rng, i ? RUSTMETAL : METAL, 0.05), -fa + rng.range(-0.12, 0.12), rng.range(-0.06, 0.06));
+        colliders.push({ x: px, z: pz, r: Math.max(segL, shipR * 2) * 0.55 });
+        run += segL + rng.range(1.5, 5);
+      }
+      gb.addBox(0, 4.8, 0, shipR * 2.2, 9.6, shipR * 2.2, vary(rng, RUSTMETAL), rng.range(0, 1)); // the engines never left
+      colliders.push({ x: 0, z: 0, r: shipR * 1.5 });
+    }
+    // the gantry, arms still reaching for where the ship is (or was)
+    const ga = rng.range(0, Math.PI * 2);
+    const gDist = shipR + rng.range(14, 20);
+    const gx = Math.cos(ga) * gDist, gz = Math.sin(ga) * gDist;
+    const gH = shipH * (fell ? rng.range(0.75, 0.95) : rng.range(0.92, 1.08));
+    gb.addBox(gx, 0.4 + gH / 2, gz, 7, gH, 7, vary(rng, RUSTMETAL, 0.05), ga, rng.range(-0.02, 0.02));
+    const armLen = gDist - shipR - 0.5;
+    for (let i = 1; i <= 3; i++) {
+      gb.addBox(Math.cos(ga) * (shipR + armLen / 2 + 0.5), 0.4 + gH * (0.22 + i * 0.21), Math.sin(ga) * (shipR + armLen / 2 + 0.5),
+        armLen, 1.5, 2.4, vary(rng, METAL), Math.PI - ga);
+    }
+    colliders.push({ x: gx, z: gz, r: 5.5 });
+    // fuel farm off one flank; a dark blast trench running off another
+    const fa2 = ga + rng.range(1.8, 2.8);
+    for (let i = 0; i < 2; i++) {
+      const tx = Math.cos(fa2) * (padR + 14 + i * 15), tz = Math.sin(fa2) * (padR + 14 + i * 15);
+      gb.addBox(tx, 5.5, tz, 11, 11, 22, vary(rng, i ? RUSTMETAL : METAL, 0.05), fa2);
+      colliders.push({ x: tx, z: tz, r: 12 });
+    }
+    const ta = ga + rng.range(-1.4, -0.6);
+    gb.addBox(Math.cos(ta) * (padR + 32), -0.8, Math.sin(ta) * (padR + 32), 70, 3, 16, [0.14, 0.12, 0.1], -ta);
+    radius = padR + 60;
   } else { // 'spire'
     const h = rng.range(120, 220), w = rng.range(14, 22);
     const tilt = rng.range(-0.1, 0.1);
@@ -196,4 +351,5 @@ export function buildMegastructure(type, rng, groundYFn) {
   return { geo: gb.build(), colliders, radius };
 }
 
-export const MEGA_TYPES = ['ring', 'colossus', 'dish', 'spire'];
+export const MEGA_TYPES = ['ring', 'colossus', 'dish', 'spire']; // the LEGACY pick pool — frozen (pool[hash] is load-bearing)
+export const MEGA_TYPES_ALL = [...MEGA_TYPES, 'launch']; // every kind that exists, for UI/tools

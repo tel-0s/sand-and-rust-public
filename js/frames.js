@@ -6,7 +6,7 @@
 // into decoupled axes (proportions, leg length, head) and modifiers
 // (antennas, spines, extra arms...). The five named frames are samples.
 import * as THREE from 'three';
-import { hash3, mulberry32 } from './rng.js';
+import { hash3, mulberry32, hash2, hashString } from './rng.js';
 
 // legs get their geometry translated so the pivot sits at the hip — rotation
 // swings them like limbs instead of spinning them like propellers
@@ -54,6 +54,13 @@ export function sampleForm(dna, opts = {}) {
     for (const [k, v] of opts.lineage.bias) form[k] *= 1 + (v - 1) * spread;
     if (opts.lineage.mod && r() < 0.55 * spread) form.mods.push(opts.lineage.mod);
   }
+  // and the biome's school shows underneath the valley's accent — the mod
+  // chance comes from DNA bits, not the stream, so existing souls keep
+  // every modifier they already had (the stream is load-bearing)
+  if (opts.accent) {
+    form[opts.accent.axis] *= 1 + (opts.accent.bias - 1) * spread;
+    if (opts.accent.mod && ((dna >>> 9) % 100) < 30 * spread && !form.mods.includes(opts.accent.mod)) form.mods.push(opts.accent.mod);
+  }
   const nMods = Math.floor(r() * (pr.modMax + 1) * Math.min(1, spread + 0.25));
   for (let i = 0; i < nMods; i++) {
     const m = pr.mods[Math.floor(r() * pr.mods.length)];
@@ -75,6 +82,19 @@ const AXIS_WORDS = {
   legThick: ['Heavyjoint', 'Finelimb'], head: ['Greathead', 'Smallcrown'],
 };
 const LINEAGE_MODS = ['antenna', 'fin', 'spines', 'pods', 'arms', 'tail', 'brow'];
+
+// the biome speaks too: each biome carries one fixed axis accent and one
+// favored modifier per world — cross the map into another country and the
+// bodies visibly change school, on top of the local valley dialects
+export function biomeAccent(seed, biomeId) {
+  const r = mulberry32(hash2(seed, hashString(biomeId) | 0, 7307) >>> 0);
+  const keys = Object.keys(AXIS_WORDS);
+  const axis = keys[Math.floor(r() * keys.length)];
+  const bias = 1 + (r() < 0.5 ? 1 : -1) * (0.06 + r() * 0.08);
+  const mod = LINEAGE_MODS[Math.floor(r() * LINEAGE_MODS.length)];
+  return { axis, bias, mod };
+}
+
 export function lineageAt(seed, x, z) {
   const cx = Math.floor(x / LINEAGE_CELL), cz = Math.floor(z / LINEAGE_CELL);
   const r = mulberry32(hash3(seed, cx, cz, 6011) >>> 0);

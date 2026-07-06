@@ -2,12 +2,12 @@
 // Terrain = layered simplex fields blended across biome control space.
 // Chunks stream in around the player; megastructures live on a sparser lattice.
 import * as THREE from 'three';
-import { Simplex2 } from './noise.js';
+import { Simplex2, smoothstep } from './noise.js';
 import { hash2, hash3, randFromHash, Rand } from './rng.js';
 import { BIOMES, biomeWeights, dominantBiome } from './biomes.js';
 import {
   GeoBuilder, addBuilding, addWreckGeo, addRock, addScrapPile,
-  addGlassSpire, addBones, buildMegastructure, MEGA_TYPES,
+  addGlassSpire, addBones, buildMegastructure, MEGA_TYPES, addCutawayBuilding,
 } from './structures.js';
 import { Names } from './grammar.js';
 import { makeCircle, resolve, supportY, pointBlocked } from './collision.js';
@@ -41,6 +41,12 @@ export class World {
     this.nDetail = new Simplex2(hash2(seed, 5, 23));
     this.nArid = new Simplex2(hash2(seed, 6, 31));
     this.nRuin = new Simplex2(hash2(seed, 7, 41));
+    // THE SHAPE OF THE LAND: landform fields. nLand selects the regime of a
+    // province (~5 km): mesa country, canyonlands, or the wash-threaded
+    // between. nMesa raises plateaus; nCut carves canyons and dry riverbeds.
+    this.nLand = new Simplex2(hash2(seed, 8, 47));
+    this.nMesa = new Simplex2(hash2(seed, 9, 53));
+    this.nCut = new Simplex2(hash2(seed, 10, 59));
 
     this.view = VIEW;             // chunk stream radius (settings can change it)
     this.chunks = new Map();      // "cx,cz" -> chunk record
@@ -124,6 +130,30 @@ export class World {
     const keep = 1 - road * 0.85;
     const warp = this.nWarp.noise(x * 0.004, z * 0.004) * 28;
     const detail = this.nDetail.fbm(x * 0.045, z * 0.045, 2);
+    // ---- landforms: mesas, canyons, dry washes ----
+    // civilization suppresses drama: salt pans (stills build there) and the
+    // buried cities stay buildable, and the roads cross everything as
+    // causeways — the old roadbeds outlasted the land around them.
+    let land = 0;
+    const civ = Math.max(0, 1 - (w[2] * 1.7 + w[4] * 1.2));
+    const mask = keep * civ;
+    if (mask > 0.02) {
+      const lf = this.nLand.fbm(x * 0.0003, z * 0.0003, 2);
+      if (lf > 0.16) { // mesa country: stepped plateaus with steep rims
+        const m = this.nMesa.noise((x + warp * 0.7) * 0.0021, (z - warp * 0.5) * 0.0021);
+        const plat = smoothstep(0.18, 0.26, m); // a tight rim: a WALL, not a bank
+        const bench = smoothstep(-0.05, 0.07, m) * 0.35;
+        land += (plat * 0.7 + bench) * 22 * smoothstep(0.16, 0.5, lf);
+      } else if (lf < -0.16) { // canyonlands: the ground splits along contours
+        const c = this.nCut.noise((x + warp) * 0.0015, (z - warp * 0.6) * 0.0015);
+        land -= smoothstep(0.1, 0.03, Math.abs(c)) * 15 * smoothstep(-0.16, -0.5, lf);
+      }
+      // dry washes thread every country: broad, shallow, sand-floored
+      const wsh = this.nCut.noise(x * 0.0008 + 31.7, z * 0.0008 - 8.3);
+      land -= smoothstep(0.05, 0.015, Math.abs(wsh)) * 2.4 * (1 - Math.abs(lf) * 0.6);
+      land *= mask;
+      h += land;
+    }
     for (let i = 0; i < BIOMES.length; i++) {
       if (w[i] < 0.03) continue;
       const b = BIOMES[i];
@@ -131,7 +161,7 @@ export class World {
       const dune = Math.pow(1 - Math.abs(dn), 1.8) * b.duneAmp;
       h += w[i] * ((dune + detail * b.detailAmp) * keep + b.baseLift);
     }
-    return { h, w, a, r, road };
+    return { h, w, a, r, road, land };
   }
 
   getHeight(x, z) { return this.sample(x, z).h; }
@@ -193,6 +223,7 @@ export class World {
     const pos = new Float32Array(verts * verts * 3);
     const col = new Float32Array(verts * verts * 3);
     const heights = new Float32Array(verts * verts);
+    const lands = new Float32Array(verts * verts);
     const detailN = this.nDetail;
     let vi = 0;
     for (let j = 0; j < verts; j++) {
@@ -200,6 +231,7 @@ export class World {
         const x = ox + i * step, z = oz + j * step;
         const s = this.sample(x, z);
         heights[j * verts + i] = s.h;
+        lands[j * verts + i] = s.land || 0;
         pos[vi] = x; pos[vi + 1] = s.h; pos[vi + 2] = z;
         // colour: blend biome palettes, shade by a fine grain
         let cr = 0, cg = 0, cb = 0;
@@ -217,6 +249,24 @@ export class World {
         }
         col[vi] = cr; col[vi + 1] = cg; col[vi + 2] = cb;
         vi += 3;
+      }
+    }
+    // second pass: bare rock shows where the landforms stand steep — mesa
+    // rims and canyon walls read as stone, not sand pushed impossibly high
+    for (let j = 0; j < verts; j++) {
+      for (let i = 0; i < verts; i++) {
+        const vi2 = (j * verts + i) * 3;
+        const i0 = Math.max(0, i - 1), i1 = Math.min(verts - 1, i + 1);
+        const j0 = Math.max(0, j - 1), j1 = Math.min(verts - 1, j + 1);
+        const sx = Math.abs(heights[j * verts + i1] - heights[j * verts + i0]) / ((i1 - i0) * step);
+        const sz = Math.abs(heights[j1 * verts + i] - heights[j0 * verts + i]) / ((j1 - j0) * step);
+        const rock = smoothstep(0.48, 1.0, Math.max(sx, sz)) * Math.min(1, Math.abs(lands[j * verts + i]) / 5);
+        if (rock > 0.02) {
+          const grain = 0.9 + 0.2 * detailN.noise((ox + i * step) * 0.07, (oz + j * step) * 0.07);
+          col[vi2] += (0.44 * grain - col[vi2]) * rock;
+          col[vi2 + 1] += (0.37 * grain - col[vi2 + 1]) * rock;
+          col[vi2 + 2] += (0.30 * grain - col[vi2 + 2]) * rock;
+        }
       }
     }
     const idx = [];
@@ -259,7 +309,9 @@ export class World {
           const brng = randFromHash(this.seed, gx * 7 + 3, gz * 7 + 5);
           if (!brng.chance(0.5)) continue;
           if (this.roadFactor(bx, bz) > 0.3) continue; // the road threads the city
-          colliders.push(...addBuilding(gb, brng, bx, sw.h, bz));
+          // some towers are torn open: cutaway ruins you can walk into
+          if (brng.chance(0.28)) colliders.push(...addCutawayBuilding(gb, brng, bx, sw.h, bz));
+          else colliders.push(...addBuilding(gb, brng, bx, sw.h, bz));
         }
       }
     }
@@ -378,7 +430,17 @@ export class World {
   // returns a live rng positioned for buildMegastructure, so visuals stay stable
   megaInfo(mx, mz) {
     const rng = randFromHash(this.seed, mx * 13 + 5, mz * 13 + 11);
-    if (!rng.chance(0.42)) return null;
+    if (!rng.chance(0.42)) {
+      // the empty cells are where a new epoch builds: launch complexes
+      // claim a fraction of the gaps on a second stream, disturbing
+      // nothing that already stands (or was ever seen)
+      const lrng = randFromHash(this.seed, mx * 29 + 17, mz * 29 + 23);
+      if (!lrng.chance(0.16)) return null;
+      const lx = (mx + lrng.range(0.25, 0.75)) * MEGA_CELL;
+      const lz = (mz + lrng.range(0.25, 0.75)) * MEGA_CELL;
+      const lname = Names.ruin(this.seed, hash2(this.seed, mx * 3 + 1, mz * 3 + 2));
+      return { key: mx + ',' + mz, x: lx, z: lz, type: 'launch', name: lname, rng: lrng };
+    }
     const x = (mx + rng.range(0.25, 0.75)) * MEGA_CELL;
     const z = (mz + rng.range(0.25, 0.75)) * MEGA_CELL;
     const type = rng.pick(MEGA_TYPES);
@@ -439,7 +501,7 @@ export class World {
         this.megas.set(key, {
           key, x, z, y, type, mesh, name, radius: built.radius, found: false,
           anchorPos: { x: ax, y: ay, z: az }, anchorMesh: pylon, anchorLamp: lamp,
-          colliders: [...built.colliders.map(c => makeCircle(c.x + x, c.z + z, c.r)), makeCircle(ax, az, 0.75, ay + 5)],
+          colliders: [...built.colliders.map(c => c.top !== undefined ? makeCircle(c.x + x, c.z + z, c.r, y + c.top, !!c.standable) : makeCircle(c.x + x, c.z + z, c.r)), makeCircle(ax, az, 0.75, ay + 5)],
         });
       }
     }

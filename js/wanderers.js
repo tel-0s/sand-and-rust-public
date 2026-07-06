@@ -9,7 +9,7 @@ import { GeoBuilder } from './structures.js';
 import { makeCircle, makeBox } from './collision.js';
 import { QUIRK_ADDRESS, QUIRK_TAG } from './dialogue.js';
 import { buildResidentMesh } from './stills.js';
-import { sampleForm, lineageAt } from './frames.js';
+import { sampleForm, lineageAt, biomeAccent } from './frames.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
 
 const CAMP_CELL = 1300;
@@ -53,6 +53,7 @@ export class Wanderer {
     // machinic DNA: a fresh hash stream, the camp's ground for an accent
     this.form = sampleForm(hash2(world.seed, camp.salt, idx * 41 + 5501), {
       temperament: this.temperament, lineage: lineageAt(world.seed, camp.x, camp.z), spread: 0.9,
+      accent: biomeAccent(world.seed, world.biomeAt(camp.x, camp.z).id),
     });
     this.mesh = buildResidentMesh(this.temperament, true, this.bodyFrame, this.form);
     attachGreebles(this.mesh, this.loadout, 0.8);
@@ -235,7 +236,8 @@ export class CampManager {
     const wanderers = [];
     for (let i = 0; i < info.residents; i++) {
       const w = new Wanderer(this.scene, this.world, info, i, rng, neighbors);
-      if (this.hooks.isRecruited && this.hooks.isRecruited(w.id)) { w.dispose(this.scene); continue; }
+      if ((this.hooks.isRecruited && this.hooks.isRecruited(w.id))
+        || (this.hooks.isSettled && this.hooks.isSettled(w.id))) { w.dispose(this.scene); continue; }
       wanderers.push(w);
     }
     this.loaded.set(info.key, { info, mesh, ember, wanderers, colliders, stash: { x: sx, z: sz, id: 'campstash:' + info.key } });
@@ -304,8 +306,12 @@ export class FollowerSystem {
   constructor(scene, world) {
     this.scene = scene; this.world = world;
     this.follower = null;
+    this.second = null; // THE SECOND CHAIR: earned, not given
     this.onDown = null; this.onHeal = null; this.onStrike = null;
   }
+
+  list() { return [this.follower, this.second].filter(Boolean); }
+  hasRoom(secondUnlocked) { return !this.follower || (!!secondUnlocked && !this.second); }
 
   recruit(npc, homeLabel) {
     const f = {
@@ -316,24 +322,33 @@ export class FollowerSystem {
       pos: npc.pos.clone(), yaw: npc.yaw || 0,
       still: npc.still, baseDisp: npc.baseDisp, trader: false, recruitable: false,
       isFollower: true, opinionOf: null,
-      damage: (n) => { f.hp -= n; f.flashT = 0.15; return n; },
+      // THE KIT (THE COMPANY b1): parts given by the walker — best equips, rest rides
+      gear: [], equipped: { PLATING: null, ARMS: null, CORE: null },
+      gearHull: 0, gearArmor: 0, gearDmg: 0, abilityT: 0, barrierT: 0,
+      damage: (n) => {
+        if (f.barrierT > 0) { f.flashT = 0.1; return 0; } // the aegis holds
+        const cut = Math.max(1, n - (f.gearArmor || 0) * 0.4);
+        f.hp -= cut; f.flashT = 0.15; return cut;
+      },
       mesh: buildResidentMesh(npc.temperament, true, npc.bodyFrame || 'biped', npc.form || null),
     };
     f.mesh.position.copy(f.pos);
     this.scene.add(f.mesh);
-    this.follower = f;
+    if (!this.follower) this.follower = f;
+    else this.second = f;
     return f;
   }
 
-  serialize() {
-    const f = this.follower;
+  serializeOne(f) {
     if (!f) return null;
     return {
       id: f.id, name: f.name, role: f.role, temperament: f.temperament,
       quirk: f.quirk, origin: f.origin, homeLabel: f.homeLabel,
-      baseDisp: f.baseDisp, hp: f.hp,
+      baseDisp: f.baseDisp, hp: f.hp, gear: f.gear, tierPeak: f.tierPeak || 1,
     };
   }
+  serialize() { return this.serializeOne(this.follower); }
+  serializeSecond() { return this.serializeOne(this.second); }
   restore(data, playerPos) {
     if (!data) return;
     const f = this.recruit({
@@ -343,47 +358,166 @@ export class FollowerSystem {
       still: { key: 'road', name: 'the road', x: playerPos.x, z: playerPos.z, temperament: data.temperament },
     }, data.homeLabel);
     f.hp = Math.max(30, data.hp ?? 110);
+    f.gear = data.gear || [];
+    f.tierPeak = data.tierPeak || 1;
+    this.refreshGear(f);
+    return f;
   }
 
-  dismiss() {
-    if (!this.follower) return;
-    this.follower.mesh && this.scene.remove(this.follower.mesh);
-    this.follower = null;
+  // ---------- THE KIT: the company wears what you give them ----------
+  gearValue(part) {
+    const s = part.stats || {};
+    return part.tier * 10 + (s.hull || 0) * 0.5 + (s.armor || 0) * 4
+      + (s.damage || 0) * 2 + (s.powerOut || 0) * 0.4 + (part.rusted ? 5 : 0);
+  }
+  refreshGear(f) {
+    for (const slot of ['PLATING', 'ARMS', 'CORE']) {
+      const pool = f.gear.filter(p => p.slot === slot);
+      f.equipped[slot] = pool.length
+        ? pool.reduce((a, b) => this.gearValue(b) > this.gearValue(a) ? b : a) : null;
+    }
+    const eq = Object.values(f.equipped).filter(Boolean);
+    f.gearHull = eq.reduce((a, p) => a + (p.stats.hull || 0), 0);
+    f.gearArmor = eq.reduce((a, p) => a + (p.stats.armor || 0), 0);
+    f.gearDmg = eq.reduce((a, p) => a + (p.stats.damage || 0), 0);
+  }
+  give(part, f = this.follower) {
+    if (!f || !['PLATING', 'ARMS', 'CORE'].includes(part.slot)) return false;
+    f.gear.push(part);
+    this.refreshGear(f);
+    return true;
+  }
+  takeBack(i, f = this.follower) {
+    if (!f || !f.gear[i]) return null;
+    const p = f.gear.splice(i, 1)[0];
+    this.refreshGear(f);
+    return p;
   }
 
-  update(dt, player, enemies) {
-    const f = this.follower;
+  dismiss(f = this.follower) {
     if (!f) return;
+    f.mesh && this.scene.remove(f.mesh);
+    if (this.second === f) { this.second = null; return; }
+    // the first chair empties: the second moves up, as companies do
+    this.follower = this.second;
+    this.second = null;
+  }
+
+  update(dt, player, enemies, worldT = 0) {
+    for (let i = 0; i < 2; i++) {
+      const f = i === 0 ? this.follower : this.second;
+      if (f) this.updateOne(f, i, dt, player, enemies, worldT);
+    }
+    // the company keeps its spacing
+    if (this.follower && this.second) {
+      const a = this.follower, b = this.second;
+      const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1.6 && d > 1e-4) {
+        const push = (1.6 - d) / 2;
+        a.pos.x -= dx / d * push; a.pos.z -= dz / d * push;
+        b.pos.x += dx / d * push; b.pos.z += dz / d * push;
+      }
+    }
+  }
+
+  updateOne(f, slot, dt, player, enemies, worldT = 0) {
     f.animT += dt;
     f.atkT = Math.max(0, f.atkT - dt);
     f.healT = Math.max(0, f.healT - dt);
     f.flashT = Math.max(0, f.flashT - dt);
 
     if (f.hp <= 0) {
-      if (this.onDown) this.onDown(f);
-      this.dismiss();
-      return;
+      // THE WANT: the sworn refuse to fall — once a world-day, they simply
+      // decide the ground is not having them
+      if (f.sworn && worldT - (f._lastStand ?? -9) > 1) {
+        f._lastStand = worldT;
+        f.hp = Math.round(f.maxHp * 0.25);
+        f.flashT = 0.5;
+        if (this.onLastStand) this.onLastStand(f);
+      } else {
+        if (this.onDown) this.onDown(f);
+        this.dismiss(f);
+        return;
+      }
     }
 
     const toPlayer = Math.hypot(player.pos.x - f.pos.x, player.pos.z - f.pos.z);
-    if (toPlayer > 60) { f.pos.set(player.pos.x + 2, player.pos.y, player.pos.z + 2); } // catch up
+    const side = slot === 1 ? -2 : 2; // each chair keeps its own shoulder
+    if (toPlayer > 60) { f.pos.set(player.pos.x + side, player.pos.y, player.pos.z + 2); } // catch up
 
     // a companion grows with the desert they walk: hull and arm scale like the
     // machines they face (the 110 floor never drops)
-    const tier = 1 + Math.min(2.2, Math.hypot(f.pos.x, f.pos.z) / 1300);
-    const newMax = Math.round(110 * tier);
+    // a companion grows with the deepest desert they have WALKED — and never
+    // gives it back (the old live-distance scaling visibly shrank them on
+    // the way home, which read as sickness, not scale)
+    f.tierPeak = Math.max(f.tierPeak || 1, 1 + Math.min(2.2, Math.hypot(f.pos.x, f.pos.z) / 1300));
+    const tier = f.tierPeak;
+    const newMax = Math.round((110 + (f.gearHull || 0) * 0.8) * tier * (f.sworn ? 1.15 : 1));
     if (newMax !== f.maxHp) {
       const frac = f.maxHp > 0 ? f.hp / f.maxHp : 1;
       f.maxHp = newMax;
       f.hp = Math.min(newMax, frac * newMax);
     }
-    f.dmg = 11 * tier;
+    f.dmg = (11 + (f.gearDmg || 0) * 0.3) * tier * (f.sworn ? 1.15 : 1);
+    f.barrierT = Math.max(0, (f.barrierT || 0) - dt);
+    f.abilityT = Math.max(0, (f.abilityT || 0) - dt);
 
     // fight what threatens you (fighters close in; menders keep their distance)
     let foe = null, fd = 20;
     for (const e of enemies.enemies) {
       const d = Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z);
       if (d < fd && e.state === 'chase') { fd = d; foe = e; }
+    }
+
+    // THE KIT: a companion USES what they carry — every granted ability
+    // has a combat meaning, keyed to its nature
+    if (f.abilityT <= 0) {
+      const abParts = Object.values(f.equipped).filter(p => p && p.ability);
+      for (const p of abParts) {
+        const ab = p.ability;
+        const power = Math.round((6 + p.tier * 5 + ((p.stats || {}).damage || 0) * 0.4) * (p.rusted ? 1.25 : 1));
+        const ffd = foe ? Math.hypot(foe.pos.x - f.pos.x, foe.pos.z - f.pos.z) : 999;
+        if (ab === 'mend' && (player.hull < player.stats.maxHull - 12 || f.hp < f.maxHp - 12)) {
+          f.abilityT = 12;
+          player.hull = Math.min(player.stats.maxHull, player.hull + power);
+          f.hp = Math.min(f.maxHp, f.hp + power);
+          if (this.onAbility) this.onAbility(f, ab, f);
+          break;
+        }
+        if (ab === 'barrier' && foe && f.hp < f.maxHp * 0.45) {
+          f.abilityT = 14; f.barrierT = 4;
+          if (this.onAbility) this.onAbility(f, ab, f);
+          break;
+        }
+        if (ab === 'overchg' && f.hp < f.maxHp * 0.6 && !foe) {
+          f.abilityT = 18; f.hp = Math.min(f.maxHp, f.hp + power * 1.5);
+          if (this.onAbility) this.onAbility(f, ab, f);
+          break;
+        }
+        if (['lance', 'volley'].includes(ab) && foe && ffd < 26 && ffd > 4) {
+          f.abilityT = 9;
+          const kd = ffd || 1;
+          foe.hurt(power * (ab === 'lance' ? 1.8 : 1.3),
+            (foe.pos.x - f.pos.x) / kd * 4, (foe.pos.z - f.pos.z) / kd * 4);
+          if (this.onAbility) this.onAbility(f, ab, foe);
+          break;
+        }
+        if (['whirl', 'crush', 'ram', 'dash', 'leap', 'surge'].includes(ab) && foe && ffd < 5) {
+          f.abilityT = 9;
+          const aoe = ['whirl', 'crush'].includes(ab);
+          for (const e of enemies.enemies) {
+            const d2 = Math.hypot(e.pos.x - f.pos.x, e.pos.z - f.pos.z);
+            if (e === foe || (aoe && d2 < 4.5)) {
+              const kd = d2 || 1;
+              e.hurt(power * (e === foe ? 1.5 : 1), (e.pos.x - f.pos.x) / kd * 6, (e.pos.z - f.pos.z) / kd * 6);
+            }
+          }
+          if (this.onAbility) this.onAbility(f, ab, foe);
+          break;
+        }
+        // ping and the rest: no combat meaning yet — the part still armors
+      }
     }
     // machines self-mend, given a quiet moment
     if (!foe) {

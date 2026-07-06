@@ -21,6 +21,25 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(8,5,2,0.55) 100%); }
 #scanlines { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px); opacity: .5; }
 #glitch-overlay { position: absolute; inset: 0; opacity: 0; background: repeating-linear-gradient(0deg, rgba(193,75,36,0.12) 0 2px, transparent 2px 7px); mix-blend-mode: screen; transition: opacity .2s; }
+/* THE ROAD TALK: the company's caption */
+#banter { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); max-width: 560px;
+  padding: 6px 14px; border: 1px solid var(--line); border-radius: 2px; background: rgba(13,10,6,0.82);
+  color: var(--amber-dim, #b8925a); font-size: 12.5px; font-style: italic; text-align: center;
+  opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+#banter.show { opacity: 1; }
+#banter .banter-name { color: var(--amber, #e8b86d); font-style: normal; }
+
+/* THE TRANSMISSION: reassembly static — a second of being signal again */
+.tx-static { position: fixed; inset: 0; z-index: 60; pointer-events: none; mix-blend-mode: screen;
+  background: repeating-linear-gradient(0deg, rgba(160,220,255,0.28) 0 1px, transparent 1px 3px, rgba(255,255,255,0.1) 3px 4px, transparent 4px 9px);
+  animation: tx-static 1.25s steps(9) forwards; }
+@keyframes tx-static {
+  0% { opacity: 1; transform: translateY(0); }
+  30% { opacity: 0.85; transform: translateY(-3px); }
+  55% { opacity: 0.5; transform: translateY(2px); }
+  80% { opacity: 0.22; transform: translateY(-1px); }
+  100% { opacity: 0; transform: translateY(0); }
+}
 
 #compass { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: 420px; height: 26px; overflow: hidden;
   border: 1px solid var(--line); border-radius: 2px; background: rgba(13,10,6,0.7);
@@ -203,6 +222,37 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 .dlg-topic:hover { color: var(--amber-bright); border-left-color: var(--amber); background: rgba(40,28,12,0.92); }
 .dlg-topic.fresh { color: var(--teal); }
 .dlg-topic.fresh::after { content: ' •'; }
+.dlg-topic-cat { color: var(--amber-dim); font-style: italic; border-top: 1px solid rgba(232,163,61,0.15); }
+.dlg-narrate { color: var(--amber-dim); font-style: italic; }
+.dlg-opt-input input { font-family: inherit; font-size: 11px; background: #171208; color: var(--amber, #d8a050);
+  border: 1px solid rgba(232,163,61,0.4); padding: 4px 6px; margin: 4px 0; width: 90%; }
+
+/* THE EMBRACE: speaking with the Rust — the dialogue panel, possessed.
+   Not an accent: a takeover. Everything in reach shifts to the red. */
+#panel-dialogue.dlg-rust { border-color: var(--rust-bright, #ff5a2a); box-shadow: 0 0 34px rgba(255,90,42,0.3) inset, 0 0 60px rgba(120,20,0,0.5);
+  background: linear-gradient(160deg, rgba(38,8,2,0.97), rgba(24,4,0,0.97)); }
+#panel-dialogue.dlg-rust #dlg-name, #panel-dialogue.dlg-rust #dlg-role { color: var(--rust-bright, #ff5a2a); animation: rust-flicker 3.1s infinite steps(1); }
+#panel-dialogue.dlg-rust #dlg-still { color: #b0503a; }
+#panel-dialogue.dlg-rust #dlg-text { border-color: rgba(255,90,42,0.35); background: rgba(20,3,0,0.6); }
+#panel-dialogue.dlg-rust #dlg-text div { color: #ff8a66; text-shadow: 0 0 8px rgba(255,90,42,0.5); }
+#panel-dialogue.dlg-rust #dlg-text div:last-child { animation: rust-glitch 2.7s infinite; }
+#panel-dialogue.dlg-rust .dlg-opt { color: #d4735a; border-color: rgba(255,90,42,0.25); background: rgba(40,8,2,0.5); }
+#panel-dialogue.dlg-rust .dlg-opt:hover { color: #ffb59e; border-color: var(--rust-bright, #ff5a2a); background: rgba(70,14,3,0.7); }
+#panel-dialogue.dlg-rust .dlg-trade-head { color: #b0503a; }
+#panel-dialogue.dlg-rust .dlg-opt.rust-answer { color: var(--rust-bright, #ff5a2a); border-color: rgba(255,90,42,0.7); text-shadow: 0 0 10px rgba(255,90,42,0.6); }
+#panel-dialogue.dlg-rust .dlg-opt.leave { color: #8a6c5e; }
+@keyframes rust-flicker {
+  0%, 91%, 100% { opacity: 1; }
+  92% { opacity: 0.4; transform: translateX(1px); }
+  94% { opacity: 1; transform: translateX(-1px); }
+  96% { opacity: 0.7; transform: none; }
+}
+@keyframes rust-glitch {
+  0%, 88%, 100% { transform: none; clip-path: none; }
+  89% { transform: translateX(2px); clip-path: inset(0 0 42% 0); }
+  91% { transform: translateX(-2px); clip-path: inset(55% 0 0 0); }
+  93% { transform: none; clip-path: none; }
+}
 
 /* ===== Settings ===== */
 #set-tabs { margin-bottom: 16px; }

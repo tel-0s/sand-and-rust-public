@@ -4,7 +4,7 @@ import { Rand, hash2 } from './rng.js';
 import { Names } from './grammar.js';
 import { clamp } from './noise.js';
 import { makePart, PART_DEFS } from './parts.js';
-import { buildForm, animateFrame, buildSegment, sampleForm, lineageAt } from './frames.js';
+import { buildForm, animateFrame, buildSegment, sampleForm, lineageAt, biomeAccent } from './frames.js';
 
 const KIND_DEFS = {
   scrabbler: {
@@ -52,6 +52,18 @@ const KIND_DEFS = {
     scale: 2.4, color: 0x6a2a10, melee: true, stationary: true,
     drops: { scrap: [4, 8], nodule: 1, alloy: 0.9, cell: 0.8, partChance: 0.85, rustBias: 0.9 },
   },
+  huntermonk: { // the white ground's answer to the blooming: sent, not spawned
+    hp: 150, speed: 10.8, dmg: 15, attackRange: 3.0, attackCd: 1.1, aggro: 240,
+    scale: 1.05, color: 0xd8d2c4, melee: true, frame: 'biped',
+    drops: { scrap: [2, 5], salt: 1, partChance: 0.4, rustBias: 0 },
+  },
+  warhulk: { // THE MARCH: the column's heart-engine — a walking siege tower.
+    // sent, not spawned: it exists only where a front puts it. it does not
+    // hurry, it does not hunt; it walks, and it shells what it was sent for.
+    hp: 520, speed: 7.6, dmg: 20, attackRange: 30, attackCd: 2.4, aggro: 34,
+    scale: 2.7, color: 0x4a3f33, melee: false, projSpeed: 26, stompDmg: 30, frame: 'colossal',
+    drops: { scrap: [6, 11], alloy: 1, cell: 0.9, partChance: 0.9 },
+  },
   conceptory: { // she made minds, once. she still makes things. she does not
     // leave: wired into the works, she leans, and her arms reach far.
     hp: 680, speed: 0, dmg: 30, attackRange: 7.5, attackCd: 1.7, aggro: 26,
@@ -77,6 +89,8 @@ const LOADOUT_SLOTS = {
   spindler: ['CORE'],
   fabcore: [],
   conceptory: ['PLATING', 'CORE', 'ARMS'],
+  huntermonk: ['PLATING', 'ARMS'],
+  warhulk: ['PLATING', 'CORE', 'ARMS'],
 };
 
 // friendly folk draw from the same pool: 1-2 parts, quality by tier.
@@ -268,6 +282,7 @@ export class Enemy {
       this.form = sampleForm(hash2(world.seed, mySalt, 7717), {
         temperament: 'feral', spread: kind === 'conceptory' ? 0.3 : 0.55,
         lineage: this.lineage, infected,
+        accent: biomeAccent(world.seed, world.biomeAt(x, z).id),
       });
       if (kind === 'conceptory') { this.form.mods = []; this.form.legLen = 1; } // her gantries are load-bearing
     }
@@ -339,6 +354,12 @@ export class Enemy {
     this.animT += dt;
     this.attackT = Math.max(0, this.attackT - dt);
     this.flashT = Math.max(0, this.flashT - dt);
+    // THE CALLING: a machine walking beside the blooming hunts its own kind
+    if (this.calledT > 0) {
+      this.calledT -= dt;
+      this.updateCalled(dt, targets, world);
+      return;
+    }
     // a machine fights whatever is nearest — you, or whoever stands with you
     const player = targets[0];
     let target = player, toPlayer = player.pos.distanceTo(this.pos);
@@ -374,11 +395,25 @@ export class Enemy {
     if (this.state === 'wander') {
       this.headingT -= dt;
       if (this.headingT <= 0) { this.heading += (Math.random() - 0.5) * 2; this.headingT = 2 + Math.random() * 3; }
-      if (!this.def.rooted) this.move(Math.sin(this.heading), Math.cos(this.heading), this.speed * (this.repelledT > 0 ? 0.95 : 0.3), dt, world);
+      if (this.march) {
+        // column discipline (THE MARCH): hold the line, close the gap when it
+        // stretches, and never wander off the axis of the war
+        const mdx = this.march.x - this.pos.x, mdz = this.march.z - this.pos.z;
+        const md = Math.hypot(mdx, mdz);
+        if (md > 2.5) {
+          this.heading = Math.atan2(mdx, mdz);
+          this.move(mdx / md, mdz / md, this.speed * (md > 22 ? 1 : 0.62), dt, world);
+        }
+      } else if (!this.def.rooted) this.move(Math.sin(this.heading), Math.cos(this.heading), this.speed * (this.repelledT > 0 ? 0.95 : 0.3), dt, world);
       // lurkers in the halls need to SEE you — no aggro through walls
-      if (toPlayer < this.aggroR * (this.aggroMul ?? 1) && this.repelledT <= 0
+      const kin = this.kind === 'rustform' && !this.raider && !this.provoked
+        && (this.embraceLevel || 0) >= 1 && target.isPlayer;
+      const calm = this.herdCalm && !this.provoked; // the herd walks; it does not hunt
+      if (!kin && !calm && toPlayer < this.aggroR * (this.aggroMul ?? 1) && this.repelledT <= 0
         && (!this.losAggro || this.seesTarget(target, world))) this.state = 'chase';
     } else if (this.state === 'chase') {
+      if (this.kind === 'rustform' && !this.raider && !this.provoked
+        && (this.embraceLevel || 0) >= 1 && target.isPlayer) this.state = 'wander';
       const dx = target.pos.x - this.pos.x, dz = target.pos.z - this.pos.z;
       const d = Math.hypot(dx, dz) || 1;
       this.heading = Math.atan2(dx, dz); // even the rooted ones lean toward you
@@ -533,6 +568,43 @@ export class Enemy {
     }
   }
 
+  // called: chase and bite the nearest OTHER machine; drift back to the
+  // caller when nothing needs biting. when the call fades, it wakes wild.
+  updateCalled(dt, targets, world) {
+    const player = targets[0];
+    let foe = null, fd = 46;
+    if (this.mgrEnemies) for (const o of this.mgrEnemies) {
+      if (o === this || o.hp <= 0 || o.calledT > 0) continue;
+      const d = o.pos.distanceTo(this.pos);
+      if (d < fd) { fd = d; foe = o; }
+    }
+    if (foe) {
+      const dx = foe.pos.x - this.pos.x, dz = foe.pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      this.heading = Math.atan2(dx, dz);
+      if (d > this.def.attackRange) this.move(dx / d, dz / d, this.speed, dt, world);
+      else if (this.attackT <= 0) {
+        this.attackT = this.def.attackCd;
+        foe._lastHitPos = { x: foe.pos.x, z: foe.pos.z };
+        foe.hurt(this.dmg, dx / d * 4, dz / d * 4);
+        foe.state = 'chase';
+      }
+    } else {
+      const dp = player.pos.distanceTo(this.pos);
+      if (dp > 8) {
+        const dx = player.pos.x - this.pos.x, dz = player.pos.z - this.pos.z;
+        this.heading = Math.atan2(dx, dz);
+        this.move(dx / dp, dz / dp, this.speed * 0.8, dt, world);
+      }
+    }
+    this.pos.y = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.1);
+    this.mesh.position.copy(this.pos);
+    this.mesh.rotation.y = this.heading;
+    if (this.mesh.userData.legs) animateFrame(this.mesh, this.animT, 1);
+    this.mesh.traverse(o => { if (o.material && o.material.emissive) o.material.emissive.setHex(0x300b02); });
+    this.updateSegments(dt, world);
+  }
+
   // can this machine actually see its target, or is there a wall in the way?
   // samples every ~0.6 m so thin walls can't slip between steps
   seesTarget(target, world) {
@@ -585,6 +657,7 @@ export class Enemy {
   }
 
   hurt(amount, kbx = 0, kbz = 0) {
+    this.provoked = true; // kinship ends where the blade begins
     // per-part damage: a hit on a segmented machine lands where it lands
     if (this.segTrail && this._lastHitPos) {
       const hp2 = this._lastHitPos;
@@ -632,7 +705,7 @@ export class EnemyManager {
   update(dt, player, projectiles, isNight, allies = []) {
     this.spawnT -= dt;
     if (this.spawnT <= 0) {
-      this.spawnT = 2.6;
+      this.spawnT = this.coldNight ? 1.9 : 2.6; // the long cold's nights press harder
       // the hollow places stock themselves once, at the door (interiors.js)
       if (this.enemies.length < this.cap && !this.suppressSpawn) this.trySpawn(player, isNight);
     }
@@ -647,6 +720,8 @@ export class EnemyManager {
       e.onHitPlayer = this.onHitPlayer;
       e.aggroMul = this.aggroMul ?? 1;
       e.dmgMul = this.dmgMul ?? 1;
+      e.embraceLevel = this.embraceLevel || 0;
+      e.mgrEnemies = this.enemies;
       e.update(dt, targets, this.world, projectiles, this.safeZones);
       if (e._segBroke) {
         this.scene.remove(e._segBroke.mesh);
