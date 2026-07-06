@@ -11,7 +11,7 @@ import { stillHistory } from './lore.js';
 
 const MEGA_KNOW = 4600;   // how far a resident's mental map of the big ones reaches
 const STILL_KNOW = 5200;  // a settled soul's world is mostly walking distance
-const MEGA_KINDS = ['ring', 'colossus', 'dish', 'spire', 'launch']; // membership check only — safe to extend
+const MEGA_KINDS = ['ring', 'colossus', 'dish', 'spire', 'launch', 'hand', 'head', 'titan']; // membership check only — safe to extend
 
 const isWordCh = (ch) => ch !== undefined && /[a-z0-9’'-]/i.test(ch);
 
@@ -199,6 +199,15 @@ export class TopicSystem {
     }
     if (kind === 'p') {
       if (rest === npc.name) return { text: aboutSelf(npc, rand) };
+      // b2 THE RELATIONS: ask a soul about their own relation and the
+      // web answers — symmetric, so the other mouth agrees
+      const rel = (npc._relations || []).find(r => r.name === rest);
+      if (rel) {
+        const line = rel.scope === 'yard'
+          ? `${rest}? ${rel.kind[rel.elder ? 'theirs' : 'mine']}. ${rel.kind.line}. you will not hear a bad word from me, and only some of that is loyalty.`
+          : `${rest} is ${rel.kin.replace('their', 'my')} — back at ${rel.still.name}. the road between us is shorter than it looks on a map and longer than it feels in a letter.`;
+        return { text: decorate(line, npc, rand) };
+      }
       // legend subjects: if this place knows the story, it knows the bearings
       const known = g.knownStoriesFor ? g.knownStoriesFor(npc) : [];
       const legend = known.find(s => s.kind === 'other' && s.subject && s.subject.name === rest);

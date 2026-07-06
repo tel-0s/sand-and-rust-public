@@ -336,6 +336,125 @@ export function buildMegastructure(type, rng, groundYFn) {
     const ta = ga + rng.range(-1.4, -0.6);
     gb.addBox(Math.cos(ta) * (padR + 32), -0.8, Math.sin(ta) * (padR + 32), 70, 3, 16, [0.14, 0.12, 0.1], -ta);
     radius = padR + 60;
+  } else if (type === 'hand') {
+    // THE HAND (ARC XV): a warbot's hand, fingers curled out of the sand,
+    // palm broad enough to hold a still. Fingers chain along X and curl in
+    // the X-Y plane (tiltZ pitches boxes long in X); the palm is STANDABLE.
+    const palmW = rng.range(60, 80), palmL = rng.range(75, 95); // palmL runs along X
+    gb.addBox(0, 7, 0, palmL, 14, palmW, vary(rng, RUSTMETAL, 0.05), 0, rng.range(-0.04, 0.04));
+    colliders.push({ x: 0, z: 0, r: Math.max(palmW, palmL) * 0.52, top: 14.2, standable: true });
+    // four fingers off the +X edge, chained knuckle to knuckle, curling up
+    for (let f = 0; f < 4; f++) {
+      const fz = -palmW * 0.36 + f * (palmW * 0.24);
+      const thick = rng.range(8, 11);
+      let jx = palmL * 0.48, jy = 12, ang = rng.range(0.3, 0.42);
+      for (let s2 = 0; s2 < 3; s2++) {
+        const segL = rng.range(22, 30) * (1 - s2 * 0.18);
+        const ex = jx + Math.cos(ang) * segL, ey = jy + Math.sin(ang) * segL;
+        gb.addBox((jx + ex) / 2, (jy + ey) / 2, fz, segL * 1.12, thick, thick,
+          vary(rng, s2 ? RUSTMETAL : METAL, 0.04), 0, ang);
+        colliders.push({ x: (jx + ex) / 2, z: fz, r: thick * 0.9 });
+        jx = ex; jy = ey; ang += rng.range(0.42, 0.58);
+      }
+    }
+    // the thumb: one heavy curl off the near edge, half-buried
+    {
+      const thick = rng.range(10, 13);
+      let jx = palmL * 0.15, jy = 8, ang = 0.5;
+      for (let s2 = 0; s2 < 2; s2++) {
+        const segL = rng.range(24, 30) * (1 - s2 * 0.2);
+        const ex = jx + Math.cos(ang) * segL * 0.6, ey = jy + Math.sin(ang) * segL;
+        gb.addBox((jx + ex) / 2, (jy + ey) / 2, palmW * 0.62, segL * 1.1, thick, thick,
+          vary(rng, RUSTMETAL, 0.05), 0.5, ang);
+        colliders.push({ x: (jx + ex) / 2, z: palmW * 0.62, r: thick });
+        jx = ex; jy = ey; ang += 0.5;
+      }
+    }
+    // the wrist: a severed trunk trailing -X into the dune, cables spilling
+    gb.addBox(-palmL * 0.68, 10, 0, 46, 22, palmW * 0.7, vary(rng, METAL, 0.05), 0, 0.14);
+    colliders.push({ x: -palmL * 0.68, z: 0, r: palmW * 0.4 });
+    for (let i = 0; i < 5; i++) {
+      const ca = rng.range(-0.7, 0.7);
+      gb.addBox(-palmL * 0.95 - i * 7, 1.2, Math.sin(ca) * 18, rng.range(9, 18), 2.4, 2.2, vary(rng, RUSTMETAL), ca);
+    }
+    // rubble ramp onto the palm: the way UP
+    gb.addBox(palmL * 0.28, 3.5, -palmW * 0.42, 22, 7, 16, vary(rng, CONCRETE, 0.04), 0, 0.3);
+    colliders.push({ x: palmL * 0.28, z: -palmW * 0.42, r: 11, top: 7.2, standable: true });
+    radius = palmL + 60;
+  } else if (type === 'head') {
+    // THE HEAD (ARC XV): a decapitated war-machine head, bigger than most
+    // buildings, resting where it rolled. The jaw fell separately.
+    const skW = rng.range(70, 95), skH = rng.range(55, 75), skL = rng.range(80, 105);
+    const roll = rng.range(-0.12, 0.12), yaw = rng.range(0, Math.PI * 2);
+    gb.addBox(0, skH * 0.34, 0, skW, skH, skL, vary(rng, METAL, 0.04), yaw, roll);
+    colliders.push({ x: 0, z: 0, r: Math.max(skW, skL) * 0.55 });
+    // the crown crest, snapped short; antenna stubs
+    gb.addBox(Math.sin(yaw) * 4, skH * 0.86, Math.cos(yaw) * 4, skW * 0.24, skH * 0.3, skL * 0.5, vary(rng, RUSTMETAL, 0.05), yaw, roll);
+    for (let i = 0; i < 3; i++) {
+      gb.addBox(Math.sin(yaw + i) * skW * 0.3, skH * 0.95 + i * 3, Math.cos(yaw + i) * skL * 0.2, 2.5, rng.range(8, 20), 2.5, vary(rng, RUSTMETAL), yaw + i, rng.range(-0.2, 0.2));
+    }
+    // the optic sockets: two dark recesses on the face, watching nothing
+    const fx = Math.sin(yaw) * (skL * 0.5), fz = Math.cos(yaw) * (skL * 0.5);
+    for (const side of [-1, 1]) {
+      const ox = fx + Math.sin(yaw + Math.PI / 2) * skW * 0.22 * side;
+      const oz = fz + Math.cos(yaw + Math.PI / 2) * skW * 0.22 * side;
+      gb.addBox(ox, skH * 0.52, oz, 11, 11, 8, [0.05, 0.045, 0.05], yaw);
+    }
+    // the jaw: fallen ahead of the face, teeth-side up, half buried
+    const jd = skL * 0.85;
+    gb.addBox(fx * 1.9, 5, fz * 1.9, skW * 0.7, 10, 26, vary(rng, RUSTMETAL, 0.05), yaw + rng.range(-0.3, 0.3), 0.08);
+    colliders.push({ x: fx * 1.9, z: fz * 1.9, r: skW * 0.4, top: 10.2, standable: true });
+    // the neck stump behind, shorn cables fanning
+    gb.addBox(-fx * 1.2, 8, -fz * 1.2, skW * 0.5, 16, 20, vary(rng, RUSTMETAL, 0.06), yaw, 0.1);
+    colliders.push({ x: -fx * 1.2, z: -fz * 1.2, r: skW * 0.3 });
+    for (let i = 0; i < 6; i++) {
+      const ca = yaw + Math.PI + rng.range(-0.8, 0.8);
+      gb.addBox(-fx * 1.2 + Math.sin(ca) * 16, 1.4, -fz * 1.2 + Math.cos(ca) * 16, 2, 2.6, rng.range(10, 22), vary(rng, RUSTMETAL), ca);
+    }
+    radius = skL + 40;
+  } else if (type === 'titan') {
+    // THE TITAN (ARC XV): an intact war machine, buried to the waist —
+    // 150 m of torso, arms, and head against the sky. The rarest thing
+    // in the desert; the silhouette carries across provinces.
+    const scale = rng.range(0.9, 1.15);
+    const S = (v) => v * scale;
+    // the waist, breaking the surface like a mountain that was built
+    gb.addBox(0, S(14), 0, S(58), S(34), S(44), vary(rng, RUSTMETAL, 0.05), rng.range(0, 0.25), 0.02);
+    colliders.push({ x: 0, z: 0, r: S(36) });
+    // the torso: two tapering tiers, battle-scarred
+    gb.addBox(0, S(52), 0, S(48), S(46), S(38), vary(rng, METAL, 0.04), 0, rng.range(-0.02, 0.02));
+    gb.addBox(0, S(96), 0, S(42), S(42), S(34), vary(rng, METAL, 0.04), 0, rng.range(-0.02, 0.02));
+    // the chest plate and its old wound
+    gb.addBox(0, S(96), S(18), S(30), S(30), S(6), vary(rng, RUSTMETAL, 0.06), 0);
+    gb.addBox(S(rng.range(-10, 10)), S(rng.range(60, 90)), S(20), S(9), S(9), S(4), [0.1, 0.07, 0.06], 0); // the hole that didn't finish it
+    // shoulders: pauldron blocks flaring wide at ~118m
+    for (const side of [-1, 1]) {
+      gb.addBox(S(30) * side, S(120), 0, S(26), S(18), S(30), vary(rng, METAL, 0.05), 0, side * 0.06);
+      colliders.push({ x: S(30) * side, z: 0, r: S(16) });
+    }
+    // the arms: one hangs dead at the flank; one is PLANTED in the sand,
+    // bracing — the machine died standing and refused to finish falling
+    // hanging arm (long in Y: built as tall thin boxes)
+    const hs = rng.chance(0.5) ? -1 : 1;
+    gb.addBox(S(44) * hs, S(84), 0, S(14), S(64), S(16), vary(rng, RUSTMETAL, 0.05), 0, hs * 0.05);
+    gb.addBox(S(46) * hs, S(38), 0, S(12), S(30), S(13), vary(rng, RUSTMETAL, 0.06), 0, hs * 0.08);
+    colliders.push({ x: S(46) * hs, z: 0, r: S(10) });
+    // planted arm: upper angles down-out (long in X, tiltZ), forearm drives into the ground
+    const ps = -hs;
+    gb.addBox(S(58) * ps, S(100), S(6), S(46), S(13), S(15), vary(rng, METAL, 0.05), 0, ps * -0.5);
+    gb.addBox(S(86) * ps, S(46), S(10), S(15), S(78), S(15), vary(rng, RUSTMETAL, 0.05), 0, ps * 0.06);
+    gb.addBox(S(86) * ps, S(6), S(10), S(30), S(12), S(26), vary(rng, RUSTMETAL, 0.06), 0.3); // the fist, buried to the knuckles
+    colliders.push({ x: S(86) * ps, z: S(10), r: S(17), top: S(12.2), standable: true });
+    // the head: intact, watching the horizon it lost
+    gb.addBox(0, S(146), 0, S(20), S(16), S(22), vary(rng, METAL, 0.04), rng.range(-0.2, 0.2));
+    gb.addBox(0, S(146), S(11), S(12), S(5), S(3), [0.06, 0.05, 0.06], 0); // the optic band, dark
+    gb.addBox(S(6), S(158), 0, S(2), S(16), S(2), vary(rng, RUSTMETAL), 0.2, 0.1); // antenna, bent
+    // greebles: vents and plating seams down the torso
+    for (let i = 0; i < 6; i++) {
+      gb.addBox(S(rng.range(-20, 20)), S(rng.range(35, 110)), S(rng.range(-1, 1) > 0 ? 19 : -19),
+        S(rng.range(4, 9)), S(rng.range(3, 6)), S(2), vary(rng, RUSTMETAL, 0.08), 0);
+    }
+    radius = S(120);
   } else { // 'spire'
     const h = rng.range(120, 220), w = rng.range(14, 22);
     const tilt = rng.range(-0.1, 0.1);
@@ -352,4 +471,4 @@ export function buildMegastructure(type, rng, groundYFn) {
 }
 
 export const MEGA_TYPES = ['ring', 'colossus', 'dish', 'spire']; // the LEGACY pick pool — frozen (pool[hash] is load-bearing)
-export const MEGA_TYPES_ALL = [...MEGA_TYPES, 'launch']; // every kind that exists, for UI/tools
+export const MEGA_TYPES_ALL = [...MEGA_TYPES, 'launch', 'hand', 'head', 'titan']; // every kind that exists, for UI/tools

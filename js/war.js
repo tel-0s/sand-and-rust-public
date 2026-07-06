@@ -527,6 +527,10 @@ export class WarSystem {
   // forgets the mass, and the desert takes a season's breath
   close(f, day, outcome) {
     const g = this.game;
+    // THE PROVING: a war survived is an impactful moment — the door opens
+    if (f.known && ['held', 'stood', 'broken', 'column'].includes(outcome) && g.openProving) {
+      g.openProving('the war against ' + f.stillName + ', ended');
+    }
     // a war that ended before its rumor arrived becomes a different rumor:
     // you hear how it ENDED, from whoever tells you first
     if (!f.known) {

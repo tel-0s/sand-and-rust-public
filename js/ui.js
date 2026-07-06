@@ -207,6 +207,8 @@ export class UI {
     } else if (g.tracked && g.tracked.kind === 'signal') {
       const q = g.quests.find(q => q.id === g.tracked.id && !q.done);
       if (q) pin = { x: q.x, z: q.z, title: q.title, desc: 'reach the signal source' };
+    } else if (g.tracked && g.tracked.kind === 'proving' && g.proving) {
+      pin = { x: g.proving.x, z: g.proving.z, title: 'THE PROVING', desc: `the deep room of ${g.proving.megaName} — take what it keeps` };
     } else if (g.tracked && g.tracked.kind === 'war' && g.war && g.war.front) {
       const f = g.war.front;
       const c = f.phase === 'marching' && g.warSys ? g.warSys.columnAt()

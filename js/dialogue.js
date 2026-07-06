@@ -2,7 +2,7 @@
 // a small blackboard of true facts; rumors point at places that really exist.
 import { Rand, hashString } from './rng.js';
 import { expand } from './grammar.js';
-import { SPEECH, GROUNDED, MEETINGS, IDIOLECT, DIALECTS, ASKS } from '../data/speech.js';
+import { SPEECH, GROUNDED, MEETINGS, IDIOLECT, DIALECTS, ASKS, LIFE, LIFE_TELL, LIVED_TELL, RELATION_KINDS, AWAY_KIN, AWAY_LINES, WITNESS, OLD, WAR_AFTER_OURS, WANT_WHY, LANE } from '../data/speech.js';
 import {
   GREET_EXT, SMALLTALK_EXT, OPINION_EXT, ROAD_EXT, WELL_EXT, EVENT_EXT,
   QUIRK_ADDRESS_EXT, QUIRK_TAG_EXT, ORIGIN_EXT,
@@ -59,6 +59,71 @@ const CALLBACK = [
   'same as last time, because it is still true: ',
   'stop me if you know it. actually, don’t: ',
 ];
+
+// b3 THE OLD ONES: ~3% of souls were read down the lattice like you —
+// derived from identity, so the same souls are old in every save of a world
+export function oldOneOf(npc) {
+  const h = hashString((npc.id || npc.name || 'soul') + '/old') >>> 0;
+  if (h % 1000 >= 30) return null;
+  return {
+    series: OLD.series[(h >>> 8) % OLD.series.length],
+    fragment: expand({ ...OLD, origin: OLD.fragment }, '#origin#', new Rand((h >>> 4) >>> 0)),
+    read: (state) => {
+      const pool = OLD['read_' + state];
+      return pool ? pool[(h >>> 12) % pool.length] : null;
+    },
+  };
+}
+
+// b3 THE WITNESSES: a recorded event, testified — the record is the
+// world's; only the angle is theirs
+const WITNESS_ANGLES = ['angle_stood', 'angle_hid', 'angle_helped', 'angle_after'];
+export function witnessLine(npc, eventText, salt, rand) {
+  const h = hashString((npc.id || npc.name) + '/wit' + salt) >>> 0;
+  const angle = WITNESS[WITNESS_ANGLES[h % WITNESS_ANGLES.length]];
+  const open = WITNESS.open[(h >>> 4) % WITNESS.open.length];
+  const ev = eventText.length > 110 ? eventText.slice(0, 107) + '…' : eventText;
+  return open.replaceAll('{event}', ev) + '. ' + angle[(h >>> 8) % angle.length];
+}
+export function warWitnessLine(npc, outcome, stillName) {
+  const pool = WITNESS['war_' + (outcome === 'stood' ? 'held' : outcome)];
+  if (!pool) return null;
+  const h = hashString((npc.id || npc.name) + '/warwit') >>> 0;
+  return pool[h % pool.length].replaceAll('{still}', stillName);
+}
+
+// ARC XIV b1 THE BIOGRAPHY: a life, derived — pure function of identity
+// and home ground. { arc, events[2-3] }, told through 'ask about them'.
+const LIFE_KINDS = ['ev_loss', 'ev_crossing', 'ev_find', 'ev_oath', 'ev_apprentice', 'ev_scare'];
+export function lifeOf(npc) {
+  const h = hashString((npc.id || npc.name || 'soul') + '/life') >>> 0;
+  const origin = npc.origin || null;
+  // an Old One's arc IS the reading — everything else is footnote
+  const old = oldOneOf(npc);
+  const rules = old
+    ? { ...LIFE, ...OLD, origin: OLD.arc }
+    : { ...LIFE, origin: LIFE.arc[npc.camp ? 'road' : (origin && h % 10 < 7 ? 'came' : 'born')] };
+  let arc = expand(rules, '#origin#', new Rand(h));
+  arc = arc.replaceAll('{origin}', origin || 'no place in particular');
+  const events = [];
+  const n = 2 + (h >>> 6) % 2; // 2–3 events, kinds never repeated
+  const order = [...LIFE_KINDS];
+  for (let k = 0; k < n; k++) {
+    const idx = (h >>> (8 + k * 5)) % order.length;
+    const kind = order.splice(idx, 1)[0];
+    events.push(expand({ ...LIFE, origin: LIFE[kind] }, '#origin#', new Rand((h ^ (k * 0x9e3779b9)) >>> 0)));
+  }
+  return { arc, events };
+}
+
+// b2 THE RELATIONS: the retelling — same fact, never the same frame
+export function tellLife(fact, rand) {
+  return rand.pick(LIFE_TELL).replaceAll('{fact}', fact);
+}
+export function tellLived(entry, rand) {
+  return rand.pick(LIVED_TELL).replaceAll('{day}', String(entry.day)).replaceAll('{text}', entry.text);
+}
+export { RELATION_KINDS, AWAY_KIN, AWAY_LINES, WANT_WHY, LANE };
 
 // b5 THE WEAVE: the question a soul turns back on you
 export function pickAsk(npc, rand) {
@@ -318,7 +383,7 @@ function bearingWord(dx, dz) {
   const words = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
   return words[Math.round(a / 45) % 8];
 }
-const MEGA_NOUN = { ring: 'a shattered orbital ring', colossus: 'a fallen colossus', dish: 'a listening array', spire: 'a broken spire', launch: 'a launch complex, the ship still on the pad' };
+const MEGA_NOUN = { ring: 'a shattered orbital ring', colossus: 'a fallen colossus', dish: 'a listening array', spire: 'a broken spire', launch: 'a launch complex, the ship still on the pad', hand: 'a warbot’s hand, fingers curled out of the sand', head: 'a war-machine’s head, resting where it rolled', titan: 'a TITAN — intact, waist-deep, still standing where the war left it' };
 
 // the still's fortune, worn on the body and spoken aloud — prosperity
 // part-swapping made visible in the mouth as well as the plate
@@ -733,8 +798,15 @@ export function smalltalk(npc, rand, ctx) {
       .replaceAll('{cep}', ctx.companion.epithet || '')));
   }
   if (ctx.warAfter && WAR_AFTER_TALK[ctx.warAfter.outcome]) {
-    const at = WAR_AFTER_TALK[ctx.warAfter.outcome].map(l => l.replaceAll('{wstill}', ctx.warAfter.still));
-    pool.push(...at, ...(ctx.warAfter.here ? at : [])); // at the wall itself, it's all anyone says
+    // THE THREADS: at the affected still the aftermath is THEIRS — spoken
+    // first-person, never like news that reached them by caravan
+    if (ctx.warAfter.here && WAR_AFTER_OURS[ctx.warAfter.outcome]) {
+      const ours = WAR_AFTER_OURS[ctx.warAfter.outcome];
+      pool.push(...ours, ...ours, ...ours); // it is all anyone here says
+    } else {
+      const at = WAR_AFTER_TALK[ctx.warAfter.outcome].map(l => l.replaceAll('{wstill}', ctx.warAfter.still));
+      pool.push(...at);
+    }
   }
   if (ctx.stakePride && (ctx.stakePride.held > 0 || ctx.stakePride.settlers > 0 || ctx.stakePride.works >= 3)) {
     // guard the templates that need real numbers

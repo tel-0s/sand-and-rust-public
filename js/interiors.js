@@ -54,6 +54,19 @@ export const ROOM_GRAMMAR = {
     entry: 'crew tunnel', halls: ['fuel gallery', 'telemetry row', 'cryo store', 'checkout bay', 'suit-up room'],
     grand: ['the integration hall', 'the flame trench'], deep: 'the countdown bunker', floors: [2, 3],
   },
+  // THE COLOSSI: the old war's corpses keep their own architecture
+  hand: {
+    entry: 'wrist breach', halls: ['tendon gallery', 'knuckle span', 'hydraulic throat', 'armature crypt', 'cable warren'],
+    grand: ['the palm chamber', 'the grip vault'], deep: 'the trigger room', floors: [2, 3],
+  },
+  head: {
+    entry: 'jaw hatch', halls: ['optic gallery', 'cortex row', 'antenna root', 'gyro chamber', 'speech-box crawl'],
+    grand: ['the mind hall', 'the command socket'], deep: 'the last thought', floors: [2, 3],
+  },
+  titan: {
+    entry: 'waist hatch', halls: ['magazine row', 'coolant gut', 'crew gallery', 'ammunition lift', 'servo cathedral'],
+    grand: ['the magazine', 'the gyro vault'], deep: 'the reactor shrine', floors: [3, 3],
+  },
 };
 
 export class InteriorSystem {

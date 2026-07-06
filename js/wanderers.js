@@ -351,10 +351,16 @@ export class FollowerSystem {
   serializeSecond() { return this.serializeOne(this.second); }
   restore(data, playerPos) {
     if (!data) return;
+    // each chair lands beside the walker on its OWN ground — restoring both
+    // to the same point left them fused (and the spacing guard skips d=0)
+    const slot = this.follower ? 1 : 0;
+    const off = slot === 0 ? { x: 1.4, z: -1.0 } : { x: -1.4, z: 1.0 };
+    const pos = playerPos.clone();
+    pos.x += off.x; pos.z += off.z;
     const f = this.recruit({
       id: data.id, name: data.name, role: data.role, temperament: data.temperament,
       quirk: data.quirk, origin: data.origin, baseDisp: data.baseDisp,
-      pos: playerPos.clone(), yaw: 0,
+      pos, yaw: 0,
       still: { key: 'road', name: 'the road', x: playerPos.x, z: playerPos.z, temperament: data.temperament },
     }, data.homeLabel);
     f.hp = Math.max(30, data.hp ?? 110);
@@ -411,9 +417,10 @@ export class FollowerSystem {
     // the company keeps its spacing
     if (this.follower && this.second) {
       const a = this.follower, b = this.second;
-      const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 1.6 && d > 1e-4) {
+      let dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z;
+      let d = Math.hypot(dx, dz);
+      if (d <= 1e-4) { dx = 1; dz = 0; d = 1; } // fused: pick an axis and part
+      if (d < 1.6) {
         const push = (1.6 - d) / 2;
         a.pos.x -= dx / d * push; a.pos.z -= dz / d * push;
         b.pos.x += dx / d * push; b.pos.z += dz / d * push;

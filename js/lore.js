@@ -25,7 +25,7 @@ const BIOME_DETAIL = {
   salt: 'the white line', glass: 'the fused ground',
   city: 'the sunken street', rustlands: 'the red sand',
 };
-const MEGA_NOUN = { ring: 'the broken ring', colossus: 'the kneeling giant', dish: 'the listening array', spire: 'the leaning spire', launch: 'the ship that never flew' };
+const MEGA_NOUN = { ring: 'the broken ring', colossus: 'the kneeling giant', dish: 'the listening array', spire: 'the leaning spire', launch: 'the ship that never flew', hand: 'the hand that reached for nothing', head: 'the head the war took off', titan: 'the one still standing' };
 
 // gather the true facts within reach of a position
 export function gatherFacts(world, stills, x, z, rand) {

@@ -545,3 +545,225 @@ export const ASKS = {
   ],
 };
 
+// ---------- ARC XIV b1 THE BIOGRAPHY: a life, derived ----------
+// A soul's past is a pure function of who and where they are — near-zero
+// save weight, stable forever, and every soul that ever existed gains one
+// retroactively. The LIVED chapter (what happens to them on the player's
+// watch) is the one part that is recorded, not derived.
+export const LIFE = {
+  arc: {
+    born: [
+      'born inside these walls, and never found a reason worth fixing that',
+      'born here — the yard raised them communally, the way yards do',
+      'third of their line in this still; the rim holds the other two',
+      'never left longer than a market trip. some roots go straight down',
+    ],
+    came: [
+      'came from {origin} #whenago#, #whyleft#',
+      'walked in from {origin} #whenago# with #carried#, and stayed',
+      '{origin}-raised — you can still hear it on their vowels — here #whenago#',
+    ],
+    road: [
+      'road-born: a caravan childhood, {origin} the closest thing to a hometown',
+      'grew up walking — bells for lullabies, {origin} for winters',
+      'born between stills, registered at {origin} a season late, never quite settled since',
+    ],
+  },
+  whenago: ['half a life ago', 'six seasons back', 'longer ago than the current wall', 'in the year of the double storm', 'two keepers ago'],
+  whyleft: ['after the water turned', 'chasing work that had dried up by arrival', 'two steps ahead of a debt', 'for someone who, it turned out, did not wait', 'when the east wall failed', 'because the dream ran too close to the surface there'],
+  carried: ['one crate and one grudge', 'nothing but tools and an accent', 'a letter they never delivered', 'a beastbot too old to haul', 'their whole trade on their back'],
+  ev_loss: [
+    'lost #someone# to #taking# and does not make a secret of it',
+    'buried #someone# after #taking# — cut the name into a rim themselves',
+    'still sets a cup out some nights for #someone#, gone since #taking#',
+  ],
+  someone: ['a digging partner', 'a sister', 'the one they meant to marry', 'their teacher', 'half a crew they ran with', 'a brother who laughed too loud'],
+  taking: ['a raid that went over the wall', 'the glass-wind, caught in the open', 'a nest that has since gone quiet', 'a bad descent into a hollow place', 'the long cold, the hard year of it', 'the road, in the usual unspecified way'],
+  ev_crossing: [
+    'once crossed #span# #crossing_how#, and has dined out on it since',
+    'made the #span# crossing #crossing_how# — the yard still argues whether it was brave or stupid',
+    'walked #span# alone once. does not recommend it. would do it again',
+  ],
+  span: ['the deep dunes', 'the glass craters', 'two provinces of open waste', 'the buried city end to end', 'the pans at full white'],
+  crossing_how: ['on a dare', 'for a debt', 'carrying medicine that mattered', 'with a broken leg-servo', 'following a rumor that turned out true'],
+  ev_find: [
+    'once dug up #found#, and #foundfate#',
+    'famous in this yard for finding #found# — #foundfate#',
+  ],
+  found: ['a sealed vault door, still warm', 'an intact orbital fragment', 'a cache of pre-Fall tools', 'a beastbot foal, functioning', 'a map of roads that no longer exist', 'somebody’s whole workshop, packed as if for travel'],
+  foundfate: ['sold it and regrets it on a schedule', 'kept one piece and will show you if asked twice', 'gave it to the well, which is what you do', 'never told anyone where. still hasn’t', 'traded it for the plating they wear now'],
+  ev_oath: [
+    'swore #oath# years ago and has kept it, which the yard finds hilarious and admirable in equal measure',
+    'keeps an old oath: #oath#. do not ask which year it started',
+  ],
+  oath: ['never to haggle over water', 'to read every rim they pass', 'never to dig on the day of a burial', 'to feed any beastbot that asks', 'never to repeat a caravan’s gossip until the caravan has left'],
+  ev_apprentice: [
+    'apprenticed under #teacher#, and it shows in #shows#',
+    'learned the trade from #teacher# — half the yard’s #shows# traces back to that bench',
+  ],
+  teacher: ['a one-armed tinker of legendary temper', 'the previous well-keeper', 'a caravan master who paid in lessons', 'a ferro-cult defector who never talked about it', 'their own mother, who was better at it'],
+  shows: ['knot-work', 'joint-tuning', 'weather-reading', 'ledger-keeping', 'the way they sharpen'],
+  ev_scare: [
+    'survived #scare# and will tell it two drinks in',
+    'was there for #scare#; came out with #scar#',
+  ],
+  scare: ['a centipede surfacing under the dig', 'a night pinned in a wreck by dervishes', 'the sky tearing open a valley over', 'a hollow place that would not stay quiet', 'a column passing within a shout of their shelter'],
+  scar: ['a plating seam that aches in the veil', 'a new respect for walls', 'someone else’s name tattooed in weld-bead', 'the habit of counting exits', 'a laugh that starts a beat too late'],
+};
+
+// ---------- b2 THE RELATIONS + the retelling ----------
+// The same fact, never the same telling: frames wrap a life-beat so each
+// retelling composes fresh around the fixed truth.
+export const LIFE_TELL = [
+  '{fact}',
+  '{fact}. ask around; the story holds',
+  'the yard tells it fancier, but the true shape is this: {fact}',
+  'not a secret: {fact}',
+  '{fact} — and that is the short version',
+  'you want the honest cut? {fact}',
+];
+export const LIVED_TELL = [
+  'and since knowing you — day {day}, {text}. they tell it like it happened to someone luckier',
+  'day {day} is in their story now: {text}. you were there, so tell it right',
+  'the newest chapter has you in it — day {day}, {text}',
+  'ask them about day {day} sometime: {text}. they have already improved the telling twice',
+];
+
+// relation kinds, symmetric across both mouths; the DIRECTIONAL ones
+// resolve by roster order so both ends agree on who owes whom
+export const RELATION_KINDS = [
+  { key: 'cousin', mine: 'my cousin', theirs: 'my cousin', line: 'we were raised ladder and rung in the same yard' },
+  { key: 'partner', mine: 'my old digging partner', theirs: 'my old digging partner', line: 'we split three seasons of finds and one enormous argument' },
+  { key: 'rival', mine: 'my rival, if we are being honest', theirs: 'my rival, and they know it', line: 'the yard keeps score for us, which saves us the indignity' },
+  { key: 'debt', mine: 'the one i owe', theirs: 'the one who owes me', line: 'a water debt, from the bad stretch. neither of us mentions the number' },
+  { key: 'taught', mine: 'my first teacher', theirs: 'my old apprentice', line: 'half of what my hands know came off that bench' },
+  { key: 'raised', mine: 'near enough a sibling', theirs: 'near enough a sibling', line: 'one roof, two bedrolls, every winter of the growing years' },
+];
+export const AWAY_KIN = ['a sister', 'a brother', 'their mother', 'an old road-partner', 'their first teacher'];
+export const AWAY_LINES = [
+  '{kin}, {name}, still at {still} — if you pass through, say the roof held',
+  '{kin} at {still}: {name}. we write, meaning we send word twice a year and mean it',
+  '{name} — {kin}, back at {still}. the reason the road never quite feels one-way',
+];
+
+// ---------- b3 THE WITNESSES: the ledgers testify ----------
+// A soul near a recorded event was THERE — with a seeded personal angle.
+// The event text is the world's real record; only the angle is theirs.
+export const WITNESS = {
+  open: [
+    'you have heard the telling — «{event}» — i was there',
+    'the histories say «{event}». histories are polite. i was there',
+    '«{event}» — that one is not a story to me',
+  ],
+  angle_stood: [
+    'i stood my stretch of it and my hands were steady until after',
+    'i held the gate-side with a borrowed arm and somebody’s prayer',
+    'i was on the wall. you learn what you are, nights like that',
+  ],
+  angle_hid: [
+    'i hid in the cistern and i am not ashamed. the cistern was full of the sensible',
+    'i spent it under a bench holding someone smaller. we both counted',
+    'i am no fighter. i kept the children quiet, which is its own wall',
+  ],
+  angle_helped: [
+    'i carried water to the wall crews until my joints sang',
+    'i ran messages through the smoke. the smoke ran back',
+    'i patched who they brought me and did not look up until dawn',
+  ],
+  angle_after: [
+    'i swept the yard after. sweeping is how this place grieves',
+    'i helped cut the names. the chisel is heavier than it looks',
+    'i was on the crew that mended the breach. the wall remembers us kindly',
+  ],
+  // the war seen from a near wall, keyed by how it ended
+  war_held: ['we heard the brood-song from our own wall for three nights, and then the bells — the GOOD bells. i have never drunk so gratefully'],
+  war_sacked: ['when {still} broke we took in eleven of theirs. some are still here. we do not call them refugees anymore; we call them neighbors'],
+  war_broken: ['the waking near {still} died before it marched, and every yard in earshot slept badly anyway. quiet has a texture, after'],
+  war_column: ['they broke the column bound for {still} on the OPEN ROAD. we heard it third-hand by dusk and first-hand by the next market'],
+};
+
+// ---------- THE OLD ONES: the ~3% who were read in, like you ----------
+export const OLD = {
+  arc: [
+    'older than these walls by more than they admit — read down the line in the #series# series, and walked out the far side of everything',
+    'one of the read-in: the #series# series, they say, though the paperwork is ash. the body is newer than the mind by a margin you should not ask about',
+    'was a PERSON once, in the old accounting — carried down the lattice with the #series# series and never quite put down',
+  ],
+  series: ['first', 'second', 'third'],
+  fragment: [
+    'i remember #memory#. i do not tell the yard; the yard would make it a story, and it is not a story. it is a room i still stand in some mornings',
+    'from before? #memory#. that is all that survived the reading, and i have checked every year since',
+    'you want to know what i kept? #memory#. the line took the rest as freight charges',
+  ],
+  memory: [
+    'the sound of rain on a real roof — tin was for the poor and we were, and it was beautiful',
+    'the coast, before it was surrendered — the birds went first, and everyone pretended not to notice',
+    'the queue at the intake hall: 41,000 people being brave in a line',
+    'streetlights coming on in rows, like the city counting itself to sleep',
+    'my hands. the old ones. i still reach with fingers i no longer have the shape of',
+    'a bell that meant dinner, not danger. we had bells that meant DINNER',
+  ],
+  // how the old ones READ you — they were carried by the same line
+  read_static: [
+    'the hum is on you. i remember it from the inside — the line holding you like a word it is deciding whether to say. sit down for a minute. the first hours are the strangest.',
+    'you rode the line. i can hear the reassembly settling, like a roof ticking after rain. it fades. most of it fades.',
+  ],
+  read_carried: [
+    'they say a walker took their old name back at the root. if that was you: good. carrying it gets lighter. i would know.',
+    'you kept the name. i kept mine too, for the first fifty years. it matters more than the yards understand.',
+  ],
+  read_erased: [
+    'the ledger lightened by one, a while back. i felt it the way you feel a door close two rooms away. if that was your doing — i am not judging. i am only saying i FELT it.',
+    'one less name in the third series. some of us noticed, walker. the line grieves in paperwork.',
+  ],
+  read_walker: [
+    'you gave the name back to its dead. that is the kindest bookkeeping there is. the desert will hold you to the new one.',
+  ],
+};
+
+// ---------- b4 THE THREADS: ownership, and wants with names in them ----------
+// A soul never narrates their own event like news that reached them by
+// caravan: at the affected still, the aftermath speaks FIRST-PERSON.
+export const WAR_AFTER_OURS = {
+  held: [
+    'we held. i say "we" — i carried water, but the wall knows its own. the bells that morning were the good kind',
+    'the march broke on OUR wall. i have swept the yard a hundred times since and it still feels like a borrowed morning',
+  ],
+  sacked: [
+    'you are standing in what the march left us. we are not a rumor to ourselves — we are a repair schedule',
+    'the wall did not hold. i was here. we buried, we mended, we kept the well drawing. that is the whole story and i own every word',
+  ],
+  broken: [
+    'the waking died before it reached us, and i still slept in my plating for a week. gratitude and nerves keep the same hours',
+  ],
+  column: [
+    'the column that was coming HERE died on the road. somebody else’s hands, our whole luck. we drink to strangers now, on principle',
+  ],
+};
+export const RUMOR_OWN = {
+  waking: 'the nests around US, walker. our own walls. we do not need the caravans to tell us — we hear the brood-song at dusk',
+  warend_held: 'you are asking at the right wall: it was OURS, and it held. ask anyone here; we were all somewhere that day',
+  warend_sacked: 'that war was not news to us. it came over OUR wall. mind how you ask about it in this yard',
+};
+
+// wants with names in them: the reason is part of the soul, derived
+export const WANT_WHY = {
+  nest: ['it took {who} from me, back before i knew you', '{who} went into its reach and did not come out. that is the whole file'],
+  place: ['{kin} of mine keeps there — {name}. i want to stand in their doorway once more before the desert decides otherwise'],
+  ride: ['i have watched the wells my whole life and never once seen them OPEN. once. i want to see it once'],
+  deep: ['#teacher# told me about the last floors and died before showing me. i owe the visit', 'my first teacher told me about the last floors and never got to show me. i owe the visit'],
+  storm: ['my grandmother stood in it and never shut up about it. i intend to inherit the not shutting up'],
+};
+
+// memory-lane banter: the road passes through their life
+export const LANE = {
+  kinstill: [
+    'this is {still}. {name} keeps here — {kin} of mine. if we pass the well, walk slow; i want to be seen doing well',
+    '{still}. i have a {kinshort} inside those walls. do not let me leave without saying so out loud',
+  ],
+  losstnest: [
+    'a nest like that one took {who} from me. i do not need it dead today. i need YOU to know, is all',
+    'i do not walk past these quiet. {who} — a nest had them. every core we break is a letter i finally get to send',
+  ],
+};
+

@@ -4,7 +4,7 @@
 // FORMAT: year.month.buildCounter — 2026.7.18 is the EIGHTEENTH BUILD of
 // July 2026, not July 18th. (A month ships as many builds as it ships;
 // some days ship five.) LABEL renders it unmistakably for humans.
-export const BUILD = '2026.7.95';
-export const ARC = 'The Tongues';
+export const BUILD = '2026.7.104';
+export const ARC = 'The Colossi';
 const [y, m, b] = BUILD.split('.');
 export const LABEL = `${y}.${m} · build ${b}`;

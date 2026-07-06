@@ -435,11 +435,38 @@ export class World {
       // claim a fraction of the gaps on a second stream, disturbing
       // nothing that already stands (or was ever seen)
       const lrng = randFromHash(this.seed, mx * 29 + 17, mz * 29 + 23);
-      if (!lrng.chance(0.16)) return null;
-      const lx = (mx + lrng.range(0.25, 0.75)) * MEGA_CELL;
-      const lz = (mz + lrng.range(0.25, 0.75)) * MEGA_CELL;
-      const lname = Names.ruin(this.seed, hash2(this.seed, mx * 3 + 1, mz * 3 + 2));
-      return { key: mx + ',' + mz, x: lx, z: lz, type: 'launch', name: lname, rng: lrng };
+      if (lrng.chance(0.16)) {
+        const lx = (mx + lrng.range(0.25, 0.75)) * MEGA_CELL;
+        const lz = (mz + lrng.range(0.25, 0.75)) * MEGA_CELL;
+        const lname = Names.ruin(this.seed, hash2(this.seed, mx * 3 + 1, mz * 3 + 2));
+        return { key: mx + ',' + mz, x: lx, z: lz, type: 'launch', name: lname, rng: lrng };
+      }
+      // THE COLOSSI (ARC XV): the old war's corpses claim cells the launch
+      // epoch left empty — fresh streams, append-only, every launch intact
+      const hrng = randFromHash(this.seed, mx * 31 + 7, mz * 31 + 13);
+      if (hrng.chance(0.11)) {
+        const hx = (mx + hrng.range(0.25, 0.75)) * MEGA_CELL;
+        const hz = (mz + hrng.range(0.25, 0.75)) * MEGA_CELL;
+        const hname = Names.ruin(this.seed, hash2(this.seed, mx * 5 + 3, mz * 5 + 1));
+        return { key: mx + ',' + mz, x: hx, z: hz, type: 'hand', name: hname, rng: hrng };
+      }
+      const drng = randFromHash(this.seed, mx * 41 + 19, mz * 41 + 29);
+      if (drng.chance(0.11)) {
+        const dx2 = (mx + drng.range(0.25, 0.75)) * MEGA_CELL;
+        const dz2 = (mz + drng.range(0.25, 0.75)) * MEGA_CELL;
+        const dname = Names.ruin(this.seed, hash2(this.seed, mx * 7 + 5, mz * 7 + 3));
+        return { key: mx + ',' + mz, x: dx2, z: dz2, type: 'head', name: dname, rng: drng };
+      }
+      // THE TITAN: the rarest thing in the desert — an intact war machine,
+      // still standing where the war left it. Machine-named: it has one.
+      const trng = randFromHash(this.seed, mx * 43 + 11, mz * 43 + 31);
+      if (trng.chance(0.02)) {
+        const tx = (mx + trng.range(0.3, 0.7)) * MEGA_CELL;
+        const tz = (mz + trng.range(0.3, 0.7)) * MEGA_CELL;
+        const tname = Names.machine(this.seed, hash2(this.seed, mx * 11 + 7, mz * 11 + 5));
+        return { key: mx + ',' + mz, x: tx, z: tz, type: 'titan', name: tname, rng: trng };
+      }
+      return null;
     }
     const x = (mx + rng.range(0.25, 0.75)) * MEGA_CELL;
     const z = (mz + rng.range(0.25, 0.75)) * MEGA_CELL;

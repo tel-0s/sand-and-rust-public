@@ -704,6 +704,90 @@ THE BUILDS.
 - Workbench SEASONS tab rides along: set season, force a shard storm,
   force a star-fall, locate the nearest herd.
 
+**ARC XV — THE COLOSSI: THE DESIGN** (committed 2026-07-06)
+The old war finally gets its corpses. The producer's notes (lines
+92–93): a rusted hand big enough to lift a still, a decapitated head
+bigger than most buildings, extremely rare INTACT war machines buried
+to the waist — paired with line 90's dangerous missions. Tenets:
+(1) THE SCALE IS THE POINT — these read from kilometers; the
+silhouette against sunset is the product.
+(2) THE LATTICE PROVIDES, APPEND-ONLY — new types claim only cells
+the launch epoch left empty, on fresh hash streams; every existing
+megastructure stands exactly where it stood.
+(3) THE WAR BECOMES LEGIBLE — the colossi are testimony: documents,
+topics, and the Old Ones' fragments converge on what actually ended
+the world.
+(4) DANGER IS INVITED — the proving-tier missions are opt-in, priced
+plainly, offered at impactful moments, never ambient.
+
+THE BUILDS:
+- b1 THE FALLEN — the hand and the head on the lattice (11% each of
+  remaining empty cells): the standable palm with its rubble ramp,
+  curled fingers three knuckles high; the rolled head with dark
+  optic sockets, fallen jaw, shorn neck-cables. Full integration:
+  interiors (wrist breach → the trigger room; jaw hatch → the last
+  thought), nouns, topics, rumor lines, TRAVEL ports.
+- b2 THE TITAN — the rarest thing in the desert (~1 per 60+ cells):
+  an intact war machine buried to the waist, 150 m of torso, arms,
+  and head against the sky, visible from other provinces. Its
+  interior descends INTO the buried half — the magazine, the reactor
+  shrine — with the heaviest lurkers in the game.
+- b3 THE PROVING (crown) — line 90's dangerous missions: deep-delve
+  contracts into colossi offered at wells after impactful events
+  (wars won, records read, epics done), staged guardians at ×1.6,
+  guaranteed Mk.III + rich caches, renown-scaled pay; arc balance.
+
+**ARC XIV — THE LIVES: THE DESIGN** (committed 2026-07-06)
+The producer's brief: souls have lives, but their words rarely show
+it — give every one a history rich with relations and witnessed
+events, 'to the extent that no two NPCs should seem the same save for
+a different name.' Sequenced directly on THE TONGUES: the loom exists;
+this arc gives it a life's worth of true things to say. Design tenets:
+(1) A LIFE IS DERIVED, NOT STORED — the voices trick at biography
+scale: a soul's life is a pure function of their identity and home
+ground PLUS the world's real ledgers. Near-zero save weight, stable
+forever, and every soul that has ever existed retroactively gains one.
+(2) THE LEDGERS TESTIFY — witnessed events are REAL events: the raids
+in their still's history, the campaigns of war.history in reach, the
+star-fall epochs, the roads that died. A soul was seeded into or
+against each ('i stood the wall that night' / 'i hid in the cistern
+and am not ashamed'). Generated personal events fill only the gaps
+the ledgers don't track — losses, crossings, oaths, finds — so a
+biography can never contradict the record.
+(3) RELATIONS ARE REAL SOULS — kin, old partners, rivals, debts bind
+to actual roster members: their own yard, the still they journeyed
+from (the origin link already exists), the road. Symmetric by
+construction (derived from the unordered pair), so both mouths agree.
+Asking after a relation makes them a topic with a bearing.
+(4) THE OLD ONES — a rare few (~3%) predate the Fall: read down the
+lattice like you, walked out like the original. They carry one
+pre-Fall fragment and READ you differently — your arrival static,
+your choice at the root, the hum you wear.
+(5) LIVES FEED EVERYTHING — companions' wants re-derive from their
+biographies (the nest that took SOMEONE, named; the still where their
+sister still hauls water), banter gains memory-lane beats keyed to
+places passed, and the asks answer back with their own lives.
+
+THE BUILDS:
+- b1 THE BIOGRAPHY — lifeOf(npc): age-band, origin arc (born inside
+  these walls / came from {real still} / road-born), and 2–3 personal
+  events composed from a LIFE_EVENTS grammar (apprenticeships, losses,
+  crossings, finds, oaths) — surfaced through the 'ask about them'
+  rotation, deterministic, tested for no-two-alike. Bench: life-of-
+  nearest-soul.
+- b2 THE RELATIONS — the web: 2–4 relations per soul binding real
+  souls across walls, symmetric across both mouths; relations become
+  askable topics with bearings; gossip prefers real relations over
+  the generic acquaintance roll.
+- b3 THE WITNESSES — the ledgers testify: souls carry the real events
+  their ground lived (histories, campaigns, falls, cut roads) with
+  seeded personal angles; THE OLD ONES appear, with pre-Fall
+  fragments and their readings of what you are.
+- b4 THE THREADS (crown) — lives feed everything: companion wants
+  re-derived from biography (named someones, real places), memory-
+  lane banter, life-answers in the asks, the balance pass, bench
+  completion.
+
 **ARC XIII — THE TONGUES: THE DESIGN** (committed 2026-07-06)
 Season three opens on the mouths. The producer's diagnosis: the
 underlying systems are theoretically powerful but the speech is
@@ -934,6 +1018,267 @@ THE BUILDS.
   stills retaken and rekindled (the loop closes through the hearth
   rites), war stories and campaign epithets on the Legend substrate,
   gossip saturation, the balance pass, Workbench completion.
+
+## build 2026.7.104 — the second chair, seated properly — ✅ SHIPPED
+
+Two playtest catches from THE COMPANY, both second-member bugs.
+
+- ✅ **The Brann bug (uninteractable second)**: [E] returned on the
+  FIRST company member within 2.5 m — in marching formation both are
+  usually in range, so every press reached the first chair and the
+  second could never be spoken to. Now the NEAREST chair wins, and the
+  interact prompt follows the same rule (it used to only ever name the
+  first chair).
+- ✅ **The fusion bug (same spot on load)**: restore placed both chairs
+  at exactly the player's position, and the spacing separator SKIPPED
+  coincident souls (its divide-by-zero guard treated d=0 as
+  unseparable). Restored chairs now land on opposite sides of the
+  walker (measured 3.44 m apart), and even deliberately fused souls
+  part within one tick along a fixed axis.
+- Verified: round119 (10 checks — nearest-chair symmetry both ways/
+  second fully conversant (want, kit, part-ways all offered)/save
+  carries both/restore stands them apart/forced-fusion parts), boot
+  clean, regression 61 fps.
+
+## build 2026.7.103 — "The Colossi" (ARC XV, build 3) — ✅ SHIPPED · ARC COMPLETE
+
+THE PROVING — line 90's dangerous missions, at last.
+
+- ✅ **The door opens at impactful moments**, never from the average
+  stilldweller: a KNOWN war ended in victory (held/stood/broken/
+  column), the intake record read whole, an epic recommission done, a
+  star cored. For six days after, every living well offers THE PROVING
+  — one at a time, the door consumed on signing.
+- ✅ **The contract**: reach the deep room of the nearest UNTAKEN
+  colossus (hand/head/titan — the old war's corpses keep the proving
+  grounds) and take what it keeps. The well-keeper unrolls an actual
+  pre-Fall FORM; pay is renown-scaled (30 ▤ + 4/renown); the target
+  marks, and the compass pins it if free ('sign by walking').
+- ✅ **The proving ground**: four staged guardians at ×1.6 the local
+  tier hold the deep room over the resident lurkers ('you can hear
+  them from here'), sentinels among them.
+- ✅ **The taking**: looting the deep cache completes on the spot — the
+  pay, a GUARANTEED Mk.III part on top of the cache's own, a
+  delve-kind story for the legend ('the yards call that a proving,
+  and they mean it as a title'), lived-chapter entries for every
+  companion who stood it, journal, pin released.
+- ✅ Workbench EVENTS: proving? readout, open-the-door free, port,
+  abandon.
+- Verified: round118 (21 checks — war opens door/well offers/signs vs
+  a colossus/door consumed + offer spent/guardians ×1.6 measured/full
+  taking with pay + Mk.III + story + lived/save/bench), boot clean,
+  regression 61 fps.
+
+**ARC XV — THE COLOSSI: COMPLETE.** The Fallen, the Titan, the
+Proving. The old war finally has corpses — a hand that could hold a
+still, a head bigger than most buildings, and twenty-three intact
+titans still standing waist-deep where it left them — and the desert
+finally has missions worthy of walking into them. Lines 90, 92, and
+93 of the notes: closed.
+
+## build 2026.7.102 — "The Colossi" (ARC XV, build 2) — ✅ SHIPPED
+
+THE TITAN — intact, waist-deep, still standing where the war left it.
+
+- ✅ **The rarest thing in the desert**: 2% of the cells every other
+  epoch passed over — census: 23 titans vs 207 hands, 170 heads, 313
+  launches across 3,600 cells, every prior claim re-derived intact.
+  190 m from the buried waist to the bent antenna.
+- ✅ **The body**: tapering torso tiers with an old wound in the chest
+  plate (the hole that didn't finish it), flared pauldrons, one arm
+  hanging dead at the flank and one PLANTED — the machine died
+  standing and refused to finish falling; the buried fist is
+  standable. The head intact, optic band dark, watching the horizon
+  it lost. Screenshot: MN-2 "PALEBREAKER" filling the sky, the player
+  ant-sized at the waist.
+- ✅ **Machine-named**: titans draw from the machine grammar, not the
+  ruin grammar — they are intact; they have a NAME.
+- ✅ **The heaviest halls in the game**: waist hatch → magazine row →
+  servo cathedral → THE REACTOR SHRINE (3 floors down, the deepest
+  grammar); lurkers at ×1.45 the local tier with sentinels in the
+  deep — measured tiers to 6.96.
+- Verified: round117 (16 checks — geometry + 190 m + standable fist/
+  rarity census + priors re-derived/machine name/live load/themed
+  3-floor interior/lurker tiers/screenshot), boot clean, regression
+  61 fps.
+
+## build 2026.7.101 — "The Colossi" (ARC XV, build 1) — ✅ SHIPPED
+
+THE FALLEN — the old war's corpses claim the empty desert. (Arc design
+committed above: the scale is the point; the lattice provides,
+append-only; the war becomes legible; danger is invited.)
+
+- ✅ **THE HAND**: fingers chained knuckle-to-knuckle, curling out of
+  the sand three joints high, thumb opposed and half-buried, a severed
+  wrist trailing cables into the dune — and the palm is STANDABLE
+  (rubble ramp up), broad enough to hold a still, as ordered. Reads
+  unmistakably from 200 m (screenshot: the curl against the glass-wind
+  sky).
+- ✅ **THE HEAD**: a decapitated war-machine head bigger than most
+  buildings, resting where it rolled — dark optic sockets, snapped
+  crown crest, antenna stubs, the jaw fallen separately (standable),
+  shorn neck-cables fanning behind.
+- ✅ **RNG-safe claims**: hand and head take 11% each of cells the
+  launch epoch left EMPTY, on fresh hash streams — census over 1600
+  cells: 668 legacy, 150 launches (every one re-derived intact), 97
+  hands, 74 heads. The legacy pick pool stays frozen.
+- ✅ **Full citizenship**: themed interiors (wrist breach → tendon
+  galleries → THE TRIGGER ROOM; jaw hatch → optic gallery → THE LAST
+  THOUGHT), rumor nouns ('a warbot's hand, fingers curled out of the
+  sand'), lore nouns, topics membership, map marks, TRAVEL ports
+  (MEGA_TYPES_ALL-driven, zero bench edits needed).
+- Verified: round116 (18 checks — registry/geometry + standables/1600-
+  cell census with launch re-derivation/live load/themed interior/
+  rumor + topics/bench/screenshot), boot clean, regression 61 fps.
+
+## build 2026.7.100 — the finder keeps its promise — ✅ SHIPPED
+
+The hundredth build of July, a field report from the Old One hunt.
+
+- ✅ **The phantom Old One** (playtest catch): the workbench finder
+  scanned candidate roster ids 0–11, but rosters are SMALLER — size
+  class, stage trims, and funded homes decide who actually spawns. It
+  was pointing at souls who never exist ('roster soul #7' of a
+  four-soul hamlet). The finder now replicates the exact spawn math
+  (residents, stage trim with the lean floor, funded homes) and scans
+  only GUARANTEED indices — conservatively where a still's stage is
+  unjudged. The report now states the count ('roster soul #2 of 5
+  guaranteed spawns'), and the miss message explains that lean stills
+  hide some and how to widen the hunt.
+- Verified: round115 (6 checks — the finder ports to Whiteyard and the
+  SPAWNED roster contains exactly the promised Old One; per-soul checks
+  agree; the guarantee never exceeds the real spawn count), boot clean,
+  regression 61 fps.
+
+## build 2026.7.99 — "The Lives" (ARC XIV, build 4) — ✅ SHIPPED · ARC COMPLETE
+
+THE THREADS — lives feed everything, and nobody narrates their own
+sack like distant news.
+
+- ✅ **OWNERSHIP** (the producer's note, closed): at the affected still
+  the aftermath speaks FIRST-PERSON, never rumor-voiced — 'you are
+  standing in what the march left us. we are not a rumor to ourselves —
+  we are a repair schedule' / 'the wall did not hold. i was here…
+  that is the whole story and i own every word.' Measured: 60 draws
+  at the sacked still, 22 first-person, ZERO rumor-voiced; the rumor
+  voice remains intact away from the wall. The waking is owned by
+  construction: at the target you always sense the brood-song before
+  a rumor could land, and the here-voice pools carry the yard (with a
+  first-person fallback if a rumor ever does slip through).
+- ✅ **Wants with names in them**: assignWant threads through the LIFE —
+  a place-want prefers the kin's real still ('{kin} of mine keeps
+  there — {name}. i want to stand in their doorway once more'), a
+  nest-want names its someone ('it took a digging partner from me,
+  back before i knew you').
+- ✅ **Memory-lane banter**: passing the kin's still ('do not let me
+  leave without saying so out loud'), and a living nest with a loss in
+  the life — 'every core we break is a letter i finally get to send.'
+- ✅ **The asks open their lives**: replies sometimes end with 'me — '
+  and one of their own derived events. Conversation is two biographies.
+- Verified: round114 (10 checks — ownership at home + rumor away/
+  waking owned/named wants + bound say/lane beats/life echoes), boot
+  clean, regression 61 fps.
+
+**ARC XIV — THE LIVES: COMPLETE.** The Biography, the Relations, the
+Witnesses, the Threads. Every soul has a derived past that can never
+contradict the record, real kin both mouths agree on, testimony in the
+first person for the events they lived, one-in-38 who remember bells
+that meant dinner — and companions whose wants have names in them.
+No two the same, save for a different name. Next: THE COLOSSI.
+
+## build 2026.7.98 — "The Lives" (ARC XIV, build 3) — ✅ SHIPPED
+
+THE WITNESSES — the ledgers testify, and the Old Ones read you.
+
+- ✅ **The testimony**: souls near a recorded event were THERE.
+  witnessedOf(npc) matches the still's real history entries (seeded
+  participation, ~60%) and the nearest war campaign within 9 km. The
+  record is the world's; only the ANGLE is theirs, seeded per soul:
+  stood it ('you learn what you are, nights like that'), hid ('i hid
+  in the cistern and i am not ashamed. the cistern was full of the
+  sensible'), helped ('i carried water to the wall crews until my
+  joints sang'), or came after ('i helped cut the names. the chisel
+  is heavier than it looks'). War campaigns get outcome-keyed
+  neighbor-testimony ('we do not call them refugees anymore; we call
+  them neighbors'). Witness beats join the self rotation between
+  relations and the lived chapter.
+- ✅ **THE OLD ONES** (~2.6% measured): souls read down the lattice
+  like you, derived from identity — the same souls are old in every
+  save of a world. Their life-arc IS the reading ('read down the line
+  in the second series, and walked out the far side of everything');
+  they keep ONE pre-Fall fragment, told as the LAST beat of their life
+  — a secret for those who keep asking ('we had bells that meant
+  DINNER'). And they READ you: fresh off the line they recognize the
+  hum from the inside; your choice at the root reaches them — the
+  carried name respected ('carrying it gets lighter. i would know'),
+  the erasure FELT ('the ledger lightened by one, a while back… i am
+  only saying i FELT it'). Recognition lines retire through the said-
+  ledger like every other thought.
+- ✅ Workbench SOULS: old-one? check, find-an-old-one (pure-hash roster
+  scan across 40 km, ports you there), witnesses-of readout.
+- Verified: round113 (19 checks — rate 26/1000/stability/arc override/
+  witness compose + told live/war testimony/reads static + retires +
+  reads the erasure/fragment last/bench), boot clean, regression
+  61 fps (one 56 reading re-run and confirmed as machine noise).
+
+## build 2026.7.97 — "The Lives" (ARC XIV, build 2) — ✅ SHIPPED
+
+THE RELATIONS — the web of real souls. Plus the retelling, closing the
+producer's loom question.
+
+- ✅ **THE RETELLING** (the loom, fully closed): life-beats were composed
+  once and told verbatim — now the FACT is fixed but the TELLING
+  composes fresh every time (tellLife/tellLived frames: 'the yard tells
+  it fancier, but the true shape is this: …' / 'ask them about day 31
+  sometime: … they have already improved the telling twice'), then
+  through decorate for the voice. Same truth, never the same sentence.
+- ✅ **The yard web**: relations derive from unordered roster pairs —
+  symmetric by construction (19 pair-ends checked, zero asymmetry):
+  cousins, old digging partners, rivals, water-debts (direction agreed
+  by roster order), teacher/apprentice, near-siblings. Resolved against
+  the LIVING roster at dialogue-open.
+- ✅ **The away-kin**: souls with a real origin still (the link that
+  always existed) carry named kin there — telling it marks the still
+  (rumored) and registers both topics: the web becomes walkable.
+- ✅ **Both mouths agree**: ask A about B and B about A — same bond,
+  told from each side ('my first teacher' / 'my old apprentice').
+  Relation beats join the self rotation; gossip prefers real relations
+  over the generic acquaintance roll.
+- ✅ Workbench SOULS: relations-of-nearest-soul (the web, with ranges).
+- Verified: round112 (13 checks — retelling varies over fixed facts/
+  symmetry sweep/determinism/told + asked + other-mouth-agrees/away
+  told + marked + topics/bench), boot clean, regression 61 fps.
+
+## build 2026.7.96 — "The Lives" (ARC XIV, build 1) — ✅ SHIPPED
+
+THE BIOGRAPHY — a life derived, a chapter lived. Season three's second
+arc opens, with the producer's two-way street built in from day one.
+
+- ✅ **lifeOf(npc)**: the derived past — a pure function of identity and
+  home ground, zero save weight, retroactive for every soul that has
+  ever existed. An origin arc routed by their real links (camp souls
+  are road-born, origin-linked souls 'came from {their actual
+  neighbor still} after the water turned', the rest born inside these
+  walls) plus 2–3 personal events from a LIFE_EVENTS grammar — losses,
+  crossings, finds, oaths, apprenticeships, scares — kinds never
+  repeating within a life. Measured: 60 souls, 60 distinct lives.
+- ✅ **THE LIVED CHAPTER** (the two-way street): `lived[key]` records
+  what happens to a soul ON YOUR WATCH — keyed by NAME for companions
+  so it survives partings and rehires. Recorded so far: taking the
+  road beside you, the want answered (with its target), refusing to
+  fall, the yards coining their name, partings (good terms / for a
+  funded home / gone wanting). Capped at 12, saved.
+- ✅ **Told, not stored-and-hidden**: the 'ask about them' rotation now
+  walks the life on its odd beats — the arc ('me? came from Wellrest
+  six seasons back, two steps ahead of a debt.'), the derived events,
+  then the lived chapter ('and since knowing you — day 31, refused to
+  fall when the ground asked twice. they tell it like it happened to
+  someone luckier.'), then back to the usual self-talk.
+- ✅ Workbench SOULS: life-of-nearest-soul (derived + lived).
+- Verified: round111 (19 checks — stability/60-alike/no artifacts/arc
+  routing/self rotation tells arc + every event/recruit + want + last
+  stand + parting all recorded and TOLD/cap/save/bench), boot clean,
+  regression 61 fps.
 
 ## build 2026.7.95 — "The Tongues" (ARC XIII, build 5) — ✅ SHIPPED · ARC COMPLETE
 

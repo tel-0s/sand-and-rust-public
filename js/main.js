@@ -33,9 +33,13 @@ import {
   aboutSelf, buyPrice, sellPrice, partPrice, MAT_VALUES, CONSUMABLE_VALUES,
   residentGossip, neighborGossip, noNeighbors, gossipDry, eventLine, WELL_FLAVOR,
   roadTalk, recruitLine, dismissLine, downLine, MARKET_TALK, decorate, taleLine, BANTER,
-  WANT_SAY, WANT_DONE, composeGreeting, pickAsk, composeSmalltalk } from './dialogue.js';
+  WANT_SAY, WANT_DONE, composeGreeting, pickAsk, composeSmalltalk, lifeOf,
+  tellLife, tellLived, RELATION_KINDS, AWAY_KIN, AWAY_LINES,
+  oldOneOf, witnessLine, warWitnessLine, WANT_WHY, LANE } from './dialogue.js';
 import { saveGame, loadGame, clearSave, listSaves } from './save.js';
 import { TopicSystem } from './topics.js';
+// THE THREADS: a soul at the threatened still owns the waking — never rumor
+const RUMOR_OWN_WAKING = 'the nests around US, walker. our own walls. we do not need the caravans to tell us — we hear the brood-song at dusk.';
 import { InteriorSystem } from './interiors.js';
 import { legacyPersonName } from '../data/legacy.js';
 import { CaravanManager } from './caravans.js';
@@ -254,6 +258,9 @@ class Game {
     this.companions = {};         // THE JOINT LEDGER: name -> { stories, kinds, epithet } — the company's own legends
     this.bandName = null;         // THE BAND NAMED: what the yards call the whole company, once they do
     this.spoken = {};             // THE MEMORY: id -> { met, lastDay, said: [line-hashes, capped] } — what each mouth told you
+    this.lived = {};              // THE BIOGRAPHY, the lived chapter: key -> [{day, text}] — what happened to them on YOUR watch (capped)
+    this.proving = null;          // THE PROVING: the active deep-delve contract {megaKey, megaName, megaType, x, z, reward, day}
+    this.provingReady = null;     // an impactful moment opened the door: {day, reason} — wells offer for 6 days
     this._staticT = 0;            // seconds of visible reassembly hum after arrival
     this._megaZones = new Map();  // live safe zones for restored anchors
     this.events = [];             // deeds that travel ahead of you
@@ -490,6 +497,7 @@ class Game {
     this.followers.onStrike = () => { this.audio.play('hit'); };
     // THE WANT: the sworn refuse the ground, once a day
     this.followers.onLastStand = (f) => {
+      this.recordLived('n:' + f.name, 'refused to fall when the ground asked twice');
       this.audio.play('bell');
       this.vfx.ring(f.pos, { color: 0xffd27f, r0: 0.4, r1: 3.5, dur: 0.6 });
       this.ui.banter(f.name, 'not TODAY.');
@@ -754,6 +762,9 @@ class Game {
     this.companions = d.companions || {};
     this.bandName = d.bandName || null;
     this.spoken = d.spoken || {};
+    this.lived = d.lived || {};
+    this.proving = d.proving || null;
+    this.provingReady = d.provingReady || null;
     this.deadNpcIds = d.deadNpcIds || [];
     this.destroyedNests = d.destroyedNests || {};
     this.histories = d.histories || {};
@@ -1221,10 +1232,28 @@ class Game {
     });
     for (let i = this.enemies.enemies.length - 1; i >= 0; i--) this.enemies.remove(i);
     this.enemies.suppressSpawn = true;
-    const baseTier = 1 + Math.min(2.2, Math.hypot(mega.x, mega.z) / 1300);
+    // THE PROVING: the contract stages its own guardians in the deep room
+    if (this.proving && this.proving.megaKey === mega.key && a.deepRoom) {
+      const dr = a.deepRoom;
+      const gTier = (1 + Math.min(2.2, Math.hypot(mega.x, mega.z) / 1300)) * 1.6;
+      ['sentinel', 'rustform', 'dervish', 'rustform'].forEach((kind, i) => {
+        const e = this.enemies.spawnAt(kind, dr.cx + Math.cos(i * 1.7) * 7, dr.cz + Math.sin(i * 1.7) * 7,
+          { tierMult: gTier, infected: true });
+        e.pos.y = a.baseY + dr.floorY;
+        e.aggroR = Math.min(e.aggroR ?? e.def.aggro, 16);
+        e.losAggro = true;
+      });
+      this.ui.toast('THE PROVING GROUND — the deep room is held. you can hear them from here', 'rust');
+    }
+    // THE TITAN keeps the heaviest lurkers in the game: its magazine was
+    // worth guarding, and something down there still agrees
+    const titanic = mega.type === 'titan';
+    const baseTier = (1 + Math.min(2.2, Math.hypot(mega.x, mega.z) / 1300)) * (titanic ? 1.45 : 1);
     const rng = new Rand((hashString(mega.key) ^ 0x51AB) >>> 0);
     for (const s of a.spawnSpots) {
-      const kind = rng.pick(s.depth >= 2 ? ['rustform', 'dervish', 'rustform']
+      const kind = rng.pick(titanic
+        ? (s.depth >= 2 ? ['sentinel', 'rustform', 'dervish'] : ['rustform', 'dervish', 'rustform'])
+        : s.depth >= 2 ? ['rustform', 'dervish', 'rustform']
         : s.depth === 1 ? ['dervish', 'scrabbler', 'rustform'] : ['scrabbler', 'scrabbler', 'dervish']);
       const e = this.enemies.spawnAt(kind, s.x, s.z, {
         tierMult: baseTier * (1 + s.depth * 0.25),
@@ -1336,6 +1365,26 @@ class Game {
         this.audio.play('chime');
         this.ui.toast(`SEALED CACHE — ${part.name.toUpperCase()} (${part.tierName}${part.rusted ? ' · RUST-GROWN' : ''}) · +2 ▣ · +1 ▮`, 'good');
         this.journal.push({ type: 'lore', cat: 'memory', title: 'THE SEALED CACHE', body: `broken open in the ${cache.room} of ${this.interiors.active.mega.name}. inside: ${part.name}, packed like it mattered to someone. it does now.` });
+        // THE PROVING, taken: the contract completes on the spot
+        if (this.proving && this.proving.megaKey === this.interiors.active.mega.key) {
+          const pv = this.proving;
+          this.proving = null;
+          if (this.tracked && this.tracked.kind === 'proving') this.tracked = null;
+          const mats2 = this.inventory.mats;
+          mats2.scrap = (mats2.scrap || 0) + pv.reward;
+          const prize = makePart(PART_DEFS.filter(d2 => d2.slot !== 'LEGS')[hash2(this.seed, hashString(pv.megaKey) | 0, 55) % PART_DEFS.filter(d2 => d2.slot !== 'LEGS').length].id, 3, false, (Math.random() * 0xffffffff) >>> 0);
+          this.inventory.parts.push(prize);
+          this.audio.play('bell');
+          this.ui.toast(`THE PROVING, TAKEN — ${pv.reward} ▤ · ${prize.name.toUpperCase()} (Mk.III)`, 'good');
+          this.rootStory('story:proving:' + pv.megaKey, 'delve',
+            `the walker signed the old form, went down into ${pv.megaName} past guardians the halls had saved up, and came back with the deep room's keeping. the yards call that a proving, and they mean it as a title.`);
+          this.recordEvent('kill', pv.megaName);
+          for (const fw of this.followers.list()) this.recordLived('n:' + fw.name, `stood the proving at ${pv.megaName}, shoulder to the walker's`);
+          this.journal.push({
+            type: 'lore', cat: 'work', title: `THE PROVING, TAKEN — ${pv.megaName.toUpperCase()}`,
+            body: `the deep room of ${pv.megaName} gave up its keeping: ${pv.reward} ▤, ${prize.name} (Mk.III), and the story. day ${1 + Math.floor(this.worldT)}. the well that posted it will hear by the next bell.`,
+          });
+        }
         return;
       }
       if (this._sourceConsole
@@ -1375,12 +1424,15 @@ class Game {
       return;
     }
     const ent = this.nearestEntity();
-    // your company, then settlement folk, then road folk
+    // your company, then settlement folk, then road folk. The NEAREST chair
+    // wins: in marching formation both are usually in range, and the first
+    // chair must not eclipse the second (the Brann bug)
+    let bestF = null, bestFD = 2.5;
     for (const f of this.followers.list()) {
-      if (Math.hypot(f.pos.x - this.player.pos.x, f.pos.z - this.player.pos.z) < 2.5) {
-        this.openDialogue(f); return;
-      }
+      const d = Math.hypot(f.pos.x - this.player.pos.x, f.pos.z - this.player.pos.z);
+      if (d < bestFD) { bestF = f; bestFD = d; }
     }
+    if (bestF) { this.openDialogue(bestF); return; }
     const npc = this.stills.npcNear(this.player.pos, 2.8) || this.camps.wandererNear(this.player.pos, 2.8)
       || this.caravans.npcNear(this.player.pos, 2.8);
     if (npc) {
@@ -1450,6 +1502,7 @@ class Game {
     if (this.fall && !this.fall.cored && this._fallCore && !ent
       && Math.hypot(this.fall.x - this.player.pos.x, this.fall.z - this.player.pos.z) < 5) {
       this.fall.cored = true;
+      this.openProving('the star, cored');
       this.scene.remove(this._fallCore); this._fallCore = null;
       const rand = new Rand(hash2(this.seed, 6041, this.fall.epoch) >>> 0);
       const pool = PART_DEFS.filter(pd => pd.slot !== 'MODULE');
@@ -1916,6 +1969,7 @@ class Game {
       npc._dialectIdx = hash2(this.seed,
         Math.round(npc.still.x / 2600) * 73 + 7, Math.round(npc.still.z / 2600) * 73 + 11) % 8;
     }
+    npc._relations = npc._relations || this.resolveRelations(npc);
     npc._legend = this.stories.find(s => s.kind === 'other' && s.subject && s.subject.alive
       && npc.still && s.subject.stillKey === npc.still.key && s.subject.name === npc.name) || null;
     this.dlg = { npc, view: 'root', lines: [], rand: new Rand((Math.random() * 0xffffffff) >>> 0) };
@@ -1935,6 +1989,20 @@ class Game {
       greet = composeGreeting(npc, stage, { days: gap }, this.dlg.rand);
     }
     this.dlg.lines.push({ text: greet || greeting(npc, tier.cls, this.dlg.rand) });
+    // THE OLD ONES read you — they were carried by the same line
+    const old = tier.cls !== 'hostile' && !npc.isFollower ? oldOneOf(npc) : null;
+    if (old) {
+      const state = this._staticT > 0 ? 'static'
+        : this.formerLife.choice === 'carried' ? 'carried'
+        : this.formerLife.choice === 'erased' ? 'erased'
+        : this.formerLife.choice === 'walker' ? 'walker' : null;
+      const line = state && old.read(state);
+      if (line && !mem.said.includes(hashString(line) >>> 0)) {
+        mem.said.push(hashString(line) >>> 0);
+        if (mem.said.length > 40) mem.said.shift();
+        this.dlg.lines.push({ text: line });
+      }
+    }
     this.deliverRumors(npc);
     // THE FORMER LIFE: one living soul knew the name — and knows the gait
     if (!this.formerLife.soul && this.txLeaks >= 1 && npc.still && !npc.isWell && !npc.isRust && !npc.isNest) {
@@ -1981,11 +2049,18 @@ class Game {
     const day = Math.floor(this.worldT);
     const p = this.player.pos;
     let type = ['place', 'nest', 'ride', 'deep', 'storm'][h % 5];
+    // THE THREADS: the want grows from the LIFE — a place-want prefers the
+    // kin's real still, a nest-want names the someone it took
+    const who = ['a digging partner', 'a sister', 'the one they meant to marry', 'their teacher', 'half a crew they ran with', 'a brother who laughed too loud'][(h >>> 5) % 6].replace('their', 'my').replace('they meant', 'i meant');
+    const kinRel = (this.resolveRelations(f) || []).find(r => r.scope === 'away');
+    if (type === 'place' && kinRel) {
+      return { type, key: kinRel.still.key, name: kinRel.still.name, x: kinRel.still.x, z: kinRel.still.z, day, kin: kinRel.kin, kinName: kinRel.name };
+    }
     if (type === 'nest') {
       const n = this.nests.nestsNear(p.x, p.z, 12000)
         .filter(n2 => !this.destroyedNests[n2.key])
         .sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
-      if (n) return { type, key: n.key, name: n.name, x: n.x, z: n.z, day };
+      if (n) return { type, key: n.key, name: n.name, x: n.x, z: n.z, day, who };
       type = 'place';
     }
     if (type === 'place') {
@@ -2020,6 +2095,7 @@ class Game {
       && this.stills.stillsNear(this.player.pos.x, this.player.pos.z, 90).length
       && !this.enemies.enemies.some(e => e.state === 'chase')) {
       this.stashKit(f);
+      this.recordLived('n:' + f.name, 'left to answer the want alone, after too long unheard');
       this.recruitedIds = this.recruitedIds.filter(x => x !== f.id); // they go HOME, not into the void
       this.followers.dismiss(f);
       this.reloadHomeOf(f.id);
@@ -2043,6 +2119,7 @@ class Game {
     c.loyalty = 1;
     c.wantDone = 1 + Math.floor(this.worldT);
     f.sworn = true;
+    this.recordLived('n:' + f.name, `the want of half a life was answered — ${c.want.name || (c.want.type === 'ride' ? 'the lattice, witnessed' : c.want.type === 'deep' ? 'the last floor, stood in' : 'the glass-wind, stood in')}`);
     this.audio.play('bell');
     this.ui.banter(f.name, WANT_DONE[c.want.type] || WANT_DONE.place);
     this.ui.toast(`${f.name.toUpperCase()} IS SWORN — the want is answered`, 'good');
@@ -2053,6 +2130,91 @@ class Game {
       type: 'lore', cat: 'event', title: `THE WANT, ANSWERED — ${f.name.toUpperCase()}`,
       body: `${f.name} needed one thing from the road, and you walked them to it: ${target}. they are SWORN now — they stand harder (+15%), hit harder, and once a day they will simply refuse to fall. the desert calls this friendship; the well-keepers call it insurance; ${f.name} calls it even.`,
     });
+  }
+
+  // b2 THE RELATIONS: the web — symmetric by construction (derived from
+  // the unordered pair, so both mouths agree), binding real roster souls
+  // in the yard and named kin at the still they actually came from
+  relationsOf(npc) {
+    const out = [];
+    const m = /^npc:(.+):(\d+)$/.exec(npc.id || '');
+    if (m) {
+      const key = m[1], idx = +m[2];
+      for (let j = 0; j < 12; j++) {
+        if (j === idx) continue;
+        const a = Math.min(idx, j), b = Math.max(idx, j);
+        const h = hash2(this.seed, hashString('rel:' + key) | 0, a * 37 + b);
+        if (h % 100 < 16) {
+          const kind = RELATION_KINDS[(h >>> 8) % RELATION_KINDS.length];
+          out.push({ scope: 'yard', key, otherIdx: j, kind, elder: idx > j });
+        }
+      }
+    }
+    // the away-kin: a named soul at the still they journeyed from
+    if (npc.origin && npc.still && npc.still.x !== undefined) {
+      const h2 = hash2(this.seed, hashString((npc.id || npc.name) + ':orel') | 0, 77);
+      if (h2 % 100 < 65) {
+        const os = this.stills.stillsNear(npc.still.x, npc.still.z, 12000).find(s => s.name === npc.origin);
+        if (os) {
+          out.push({
+            scope: 'away', still: os,
+            kin: AWAY_KIN[(h2 >>> 8) % AWAY_KIN.length],
+            name: Names.person(this.seed, hash2(this.seed, hashString(os.key) | 0, (h2 >>> 4) % 6 + 900)),
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  // resolve the yard relations against the LIVING roster at dialogue-open
+  resolveRelations(npc) {
+    const rels = this.relationsOf(npc);
+    const rec = npc.still && this.stills.loaded.get(npc.still.key);
+    const out = [];
+    for (const r of rels) {
+      if (r.scope === 'away') { out.push(r); continue; }
+      const other = rec && rec.npcs.find(n => n.id === 'npc:' + r.key + ':' + r.otherIdx);
+      if (other) out.push({ ...r, name: other.name, other });
+      // the absent stay real: 'gone with the lean years' — but only the
+      // present are told in b2; the absent join THE WITNESSES (b3)
+    }
+    return out;
+  }
+
+  // b3 THE WITNESSES: the real records this soul can testify to — their
+  // still's history (seeded participation) and the nearest campaign
+  witnessedOf(npc) {
+    const out = [];
+    if (!npc.still || npc.still.x === undefined) return out;
+    const hist = (this.histories[npc.still.key] || []).slice(-3);
+    hist.forEach((entry, i) => {
+      const h = hash2(this.seed, hashString((npc.id || npc.name) + ':wit') | 0, i * 71 + 3);
+      if (h % 100 < 60) out.push({ t: 'hist', entry, salt: i });
+    });
+    const camp = (this.war.history || []).find(w => {
+      const s = this.resolveStillByKey(w.stillKey);
+      return s && Math.hypot(s.x - npc.still.x, s.z - npc.still.z) < 9000;
+    });
+    if (camp) out.push({ t: 'war', outcome: camp.outcome, stillName: camp.stillName || 'the near wall' });
+    return out.slice(0, 3);
+  }
+
+  // THE PROVING (ARC XV b3): impactful moments open the door — the well
+  // offers a deep-delve contract for six days after
+  openProving(reason) {
+    if (this.proving) return;
+    this.provingReady = { day: Math.floor(this.worldT), reason };
+  }
+
+  // THE BIOGRAPHY, the lived chapter: the two-way street — what happens
+  // to a soul on the player's watch is remembered, and they will tell it
+  livedKeyOf(npc) { return npc.isFollower ? 'n:' + npc.name : (npc.id || 'n:' + npc.name); }
+  recordLived(npc, text) {
+    const key = typeof npc === 'string' ? npc : this.livedKeyOf(npc);
+    const list = this.lived[key] || (this.lived[key] = []);
+    list.push({ day: 1 + Math.floor(this.worldT), text });
+    if (list.length > 12) list.shift();
   }
 
   // THE ROAD TALK: the company speaks, unprompted, in season
@@ -2138,7 +2300,23 @@ class Game {
     const near = this.stills.stillsNear(p.pos.x, p.pos.z, 70)[0];
     if (near) {
       if (f.origin && f.origin === near.name) { const l = tryKey('home:' + near.key, BANTER.home); if (l) return l; }
+      // THE THREADS: passing the kin's still is a memory-lane beat
+      const kinRel = (f._relations || (f._relations = this.resolveRelations(f))).find(r => r.scope === 'away' && r.still.key === near.key);
+      if (kinRel) {
+        const l = tryKey('kin:' + near.key, LANE.kinstill);
+        if (l) return l.replaceAll('{still}', near.name).replaceAll('{name}', kinRel.name)
+          .replaceAll('{kin}', kinRel.kin).replaceAll('{kinshort}', kinRel.kin.replace(/^(a|an|their) /, ''));
+      }
       const l = tryKey('still:' + near.key, BANTER.stillArrive); if (l) return l;
+    }
+    // a nest in sight, and a loss in the life: the letter finally sent
+    const c0 = this.companions[f.name];
+    if (c0 && c0.want && c0.want.type === 'nest' && c0.want.who) {
+      const nearNest = this.nests.nestsNear(p.pos.x, p.pos.z, 220).filter(n2 => !this.destroyedNests[n2.key])[0];
+      if (nearNest) {
+        const l = tryKey('lane-nest:' + nearNest.key, LANE.losstnest);
+        if (l) return l.replaceAll('{who}', c0.want.who);
+      }
     }
     if (this.dayT > 0.995 || this.dayT < 0.02) { const l = tryKey('dawn:' + day, BANTER.dawn); if (l) return l; }
     // the want, voiced — every couple of days while it goes unanswered
@@ -2195,9 +2373,13 @@ class Game {
       if (Math.hypot(r.x - loc.x, r.z - loc.z) > r.reach) continue;
       this.rumors.splice(i, 1);
       if (r.kind === 'waking') {
+        // THE THREADS: at the threatened still itself, this is not news
+        // arriving — it is their own walls, spoken as such
+        const ours = this.war.front && npc.still && this.war.front.stillKey === npc.still.key;
         this.dlg.lines.push({
           text: npc.isWell
             ? `the water carries a tremor from up the line: the nests around ${r.data.stillName} have woken together. a front masses there.`
+            : ours ? RUMOR_OWN_WAKING
             : `you haven't heard? the nests around ${r.data.stillName} woke together — all of them, on one key. a front masses against the place. the roads are giving it a wide berth.`,
         });
         this.warSys.announceFront('told');
@@ -2328,6 +2510,7 @@ class Game {
       const dominant = Object.entries(c.kinds).sort((a, b) => b[1] - a[1])[0];
       const pool = this.EPITHET_POOLS[dominant ? dominant[0] : 'legend'] || this.EPITHET_POOLS.legend;
       c.epithet = pool[hash2(this.seed, hashString(name) | 0, 5151) % pool.length];
+      this.recordLived('n:' + name, `the yards coined them a name: ${c.epithet}`);
       this.audio.play('bell');
       this.ui.toast(`THE YARDS HAVE A NAME FOR ${name.toUpperCase()}: ${c.epithet.toUpperCase()}`, 'good');
       this.journal.push({
@@ -3151,6 +3334,11 @@ class Game {
           }
         }
       }
+      // THE PROVING: the door an impactful moment opened — six days wide
+      if (this.provingReady && !this.proving
+        && Math.floor(this.worldT) - this.provingReady.day < 6) {
+        opts.push({ id: 'svc:proving', label: `⚔ THE PROVING — a deep delve, for those the ${this.provingReady.reason.split(',')[0]} did not satisfy (dangerous; it pays like it)` });
+      }
       // THE RETAKING: a town the war bit can be raised while the wound is fresh
       const sack = (this.war.history || []).find(h => h.stillKey === npc.still.key
         && h.outcome === 'sacked' && !h.raised && Math.floor(this.worldT) - h.day <= 12);
@@ -3384,7 +3572,13 @@ class Game {
       if (ask && id !== 'askreply:none') {
         const r = ask.replies[Number(id.slice(9))];
         if (r) {
-          say(decorate(r[1], npc, rand));
+          let resp = r[1];
+          // THE THREADS: sometimes the answer opens their own life a crack
+          if (rand.chance(0.3)) {
+            const life = npc._life || (npc._life = lifeOf(npc));
+            if (life.events.length) resp += ' me — ' + life.events[0] + '.';
+          }
+          say(decorate(resp, npc, rand));
           if (r[2]) this.npcDisp[npc.id] = Math.max(-40, Math.min(40, (this.npcDisp[npc.id] || 0) + r[2]));
         }
       } else if (ask) {
@@ -3460,6 +3654,7 @@ class Game {
       // the whole file read: the record notes it, and the ANSWER field waits
       if (d.recWho && d.recWhen && d.recLeft && !this.formerLife.source) {
         this.formerLife.source = 1 + Math.floor(this.worldT);
+        this.openProving('the record, read whole');
         this.audio.play('bell');
         sys('the console surfaces one last element: an ANSWER field, blank, cursor patient. it has waited this long. it can wait until you have one.');
         this.ui.toast('THE RECORD, READ WHOLE — the answer field waits', 'good');
@@ -3613,6 +3808,7 @@ class Game {
     if (id === 'trade') { d.view = 'trade'; this.renderDlg(); return; }
     if (id === 'recruit') {
       const newf = this.followers.recruit(npc, npc.still ? npc.still.name : 'the road');
+      this.recordLived('n:' + npc.name, `took the road beside the walker, out of ${npc.still ? npc.still.name : 'the open sand'}`);
       if (this.reclaimKit(newf)) this.ui.toast(`${npc.name.toUpperCase()} SHOULDERS THE OLD PACK — the kit kept, every piece`, 'good');
       this.recruitedIds.push(npc.id);
       // pull them out of their home roster so they aren't in two places
@@ -3647,6 +3843,7 @@ class Game {
       }, f.id);
       narrate(`"${(this.resolveStillByKey(this.stake.key) || {}).name || 'home'}," they repeat. "ours." they unstrap the pack like it weighs a year. you will know where to find them — that is the whole point.`);
       this.stashKit(f); // the pack goes under their new bed, not into the sand
+      this.recordLived('n:' + f.name, `hung up the road for a funded home — the walker's own town`);
       this.followers.dismiss(f);
       saveGame(this);
       this.ui.closePanel(); this.dlg = null;
@@ -3658,6 +3855,7 @@ class Game {
       this.npcDisp[f.id] = Math.max(-40, Math.min(40, (this.npcDisp[f.id] || 0) + 2));
       this.recruitedIds = this.recruitedIds.filter(x => x !== f.id);
       this.stashKit(f); // they walk home with the kit; it comes back with them
+      this.recordLived('n:' + f.name, `parted from the walker at ${f.homeLabel || 'the road'}, on good terms`);
       this.followers.dismiss(f);
       this.reloadHomeOf(f.id); // if their home is loaded, they reappear in it
       this.ui.toast(`${f.name.toUpperCase()} turns for ${f.homeLabel}`, 'good');
@@ -3769,13 +3967,60 @@ class Game {
       }
       if (d.selfTurns % 2 === 0) {
         const rec = this.stills.loaded.get(npc.still.key);
-        const others = [npc.opinionOf, ...(rec ? rec.npcs.map(n => n.name) : [])]
+        // the gossip makes the rounds — but a REAL relation goes first
+        const relNames = (npc._relations || []).filter(r => r.scope === 'yard').map(r => r.name);
+        const others = [...relNames, npc.opinionOf, ...(rec ? rec.npcs.map(n => n.name) : [])]
           .filter((nm, i, arr) => nm && nm !== npc.name && arr.indexOf(nm) === i);
         if (others.length) {
           say(residentGossip(npc, others[(d.gossipIdx = (d.gossipIdx || 0)) % others.length], rand));
           d.gossipIdx++;
         } else say(aboutSelf(npc, rand));
-      } else say(aboutSelf(npc, rand));
+      } else {
+        // THE BIOGRAPHY through the loom: the beats are FACTS; the telling
+        // composes fresh around them every time (tellLife/tellLived frames)
+        const life = npc._life || (npc._life = lifeOf(npc));
+        const livedList = this.lived[this.livedKeyOf(npc)] || [];
+        const rels = npc._relations || [];
+        const old = oldOneOf(npc);
+        const beats = [
+          { t: 'arc', v: life.arc },
+          ...life.events.map(v => ({ t: 'ev', v })),
+          ...rels.map(r => ({ t: 'rel', v: r })),
+          ...this.witnessedOf(npc).map(w => ({ t: 'wit', v: w })),
+          ...livedList.slice(-3).map(e => ({ t: 'lived', v: e })),
+          ...(old ? [{ t: 'old', v: old }] : []), // the secret, for those who keep asking
+        ];
+        const li = d.lifeIdx || 0;
+        if (li < beats.length && d.selfTurns > 1) {
+          d.lifeIdx = li + 1;
+          const b = beats[li];
+          let line;
+          if (b.t === 'arc') line = 'me? ' + tellLife(b.v, rand) + '.';
+          else if (b.t === 'ev') line = tellLife(b.v, rand) + '.';
+          else if (b.t === 'wit') {
+            line = b.v.t === 'war'
+              ? (warWitnessLine(npc, b.v.outcome, b.v.stillName) || tellLife(life.events[0], rand)) + '.'
+              : witnessLine(npc, b.v.entry, b.v.salt, rand) + '.';
+          }
+          else if (b.t === 'old') line = b.v.fragment + '.';
+          else if (b.t === 'lived') line = tellLived(b.v, rand) + '.';
+          else {
+            // a relation beat: the web, spoken — and the away-kin puts a
+            // real place on your map and a real name in your topics
+            const r = b.v;
+            if (r.scope === 'yard') {
+              line = `${r.kind[r.elder ? 'theirs' : 'mine']}, ${r.name} — ${r.kind.line}.`;
+            } else {
+              line = rand.pick(AWAY_LINES)
+                .replaceAll('{kin}', r.kin).replaceAll('{name}', r.name).replaceAll('{still}', r.still.name) + '.';
+              this.world.markDiscovered({ key: 'still:' + r.still.key, name: r.still.name, kind: 'still', x: r.still.x, z: r.still.z, rumored: true });
+              this.topicsSys.register('s:' + r.still.key, r.still.name);
+              this.topicsSys.register('p:' + r.name, r.name);
+            }
+          }
+          say(decorate(line, npc, rand));
+        } else say(aboutSelf(npc, rand));
+      }
       this.renderDlg(); return;
     }
     if (id === 'history') {
@@ -3916,6 +4161,32 @@ class Game {
           { stills: [npc.still] });
         sys('the plate goes out hand to hand. the well-keeper counts the coils twice and says nothing, which is how wells say thank you.');
         this.renderDlg(); return;
+      } else if (id === 'svc:proving') {
+        if (!this.provingReady || this.proving) return;
+        // the target: the nearest colossus whose deep room is UNTAKEN —
+        // the old war's corpses keep the proving grounds
+        const target = this.world.megasNear(npc.still.x, npc.still.z, 22000)
+          .filter(m => ['hand', 'head', 'titan'].includes(m.type))
+          .filter(m => !this.world.looted.has('int:' + m.key + ':deep'))
+          .sort((a, b) => Math.hypot(a.x - npc.still.x, a.z - npc.still.z) - Math.hypot(b.x - npc.still.x, b.z - npc.still.z))[0];
+        if (!target) { sys('the well considers, and declines: no proving ground stands untaken within reach. the door stays open — ask at another wall.'); this.renderDlg(); return; }
+        const rn = this.renownAt(npc.still.key);
+        const pay = 30 + Math.round(rn * 4);
+        this.proving = {
+          megaKey: target.key, megaName: target.name, megaType: target.type,
+          x: target.x, z: target.z, reward: pay, day: Math.floor(this.worldT),
+        };
+        this.provingReady = null;
+        this.world.markDiscovered({ key: target.key, name: target.name, kind: target.type, x: target.x, z: target.z, rumored: true });
+        if (!this.tracked) this.tracked = { kind: 'proving', id: target.key };
+        const noun = target.type === 'titan' ? 'the TITAN' : target.type === 'hand' ? 'the fallen hand' : 'the fallen head';
+        narrate(`the well-keeper unrolls the old form — an actual FORM, pre-Fall stock. "the proving. reach the deep room of ${target.name} — ${noun}, ${(Math.hypot(target.x - npc.still.x, target.z - npc.still.z) / 1000).toFixed(1)} km out — and take what it keeps. the guardians will be worse than the usual. the pay is ${pay} scrap, the cache, and the kind of story that names people. sign by walking."`);
+        this.journal.push({
+          type: 'lore', cat: 'work', title: `THE PROVING — ${target.name.toUpperCase()}`,
+          body: `reach the deep room of ${target.name} (${noun}) and take the prize it keeps. the guardians stand heavier than anything the halls usually hold. pay: ${pay} ▤ on the taking, plus the cache itself. marked on the map; on the compass if it was free.`,
+        });
+        this.audio.play('quest');
+        this.renderDlg(); return;
       } else if (id === 'svc:warraise') {
         const sack = (this.war.history || []).find(h => h.stillKey === npc.still.key
           && h.outcome === 'sacked' && !h.raised && Math.floor(this.worldT) - h.day <= 12);
@@ -3995,7 +4266,11 @@ class Game {
         const f = npc;
         const c = this.companions[f.name] || (this.companions[f.name] = { stories: 0, kinds: {}, epithet: null });
         if (!c.want) c.want = this.assignWant(f);
-        say((WANT_SAY[c.want.type] || '').replaceAll('{target}', c.want.name || ''));
+        let wsay = (WANT_SAY[c.want.type] || '').replaceAll('{target}', c.want.name || '');
+        // the reason has a name in it, when the life provides one
+        if (c.want.who) wsay = wsay.replace('it took someone from me', `it took ${c.want.who} from me`);
+        if (c.want.kinName) wsay += ` ${c.want.kin} of mine keeps there — ${c.want.kinName}. that is the want, whole.`;
+        say(wsay);
         if (c.want.x !== undefined) {
           this.world.markDiscovered({
             key: (c.want.type === 'nest' ? 'nest:' : 'still:') + c.want.key,
@@ -4219,6 +4494,7 @@ class Game {
         });
         if (this.tracked && this.tracked.kind === 'epic') this.tracked = null;
         this.epic = null;
+        this.openProving('the recommission, done');
         this.audio.play('bell');
         this.vfx.rise(this.player.pos, { color: 0x6fe8d0, r: 2.6 });
         sys('the Shaper is surrendered · −6 ▤ · the weave holds');
@@ -4784,9 +5060,14 @@ class Game {
         this.ui.showInteract(`<b>[E]</b> BREAK THE SEAL — the hollow places of ${mega ? mega.name.toUpperCase() : 'the ruin'}`);
       } else {
       const ent = this.dead ? null : this.nearestEntity();
-      const fol = this.followers.follower;
+      // the prompt follows the same rule as [E]: nearest chair first
+      let fol = null, folD = 2.5;
+      for (const ff of this.followers.list()) {
+        const d = Math.hypot(ff.pos.x - p.pos.x, ff.pos.z - p.pos.z);
+        if (d < folD) { fol = ff; folD = d; }
+      }
       const npc = this.dead ? null
-        : (fol && Math.hypot(fol.pos.x - p.pos.x, fol.pos.z - p.pos.z) < 2.5 ? fol : null)
+        : fol
         || this.stills.npcNear(p.pos, 2.8) || this.camps.wandererNear(p.pos, 2.8)
         || this.caravans.npcNear(p.pos, 2.8);
       const fire = this.dead ? null : this.camps.fireNear(p.pos, 2.8);

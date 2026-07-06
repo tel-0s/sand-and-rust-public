@@ -751,6 +751,27 @@ export function initDebug(getGame) {
           log('→ 12 ❄ + 20 ▤ + a Mk.3 plate: the rite is affordable');
         });
       }));
+      c.appendChild(sec('THE PROVING', (el) => {
+        const r = row(el);
+        btn(r, 'proving?', () => {
+          const G = g();
+          if (G.proving) return log(`ACTIVE — ${G.proving.megaName} (${G.proving.megaType}), ${(Math.hypot(G.proving.x - pos().x, G.proving.z - pos().z) / 1000).toFixed(1)}km · pay ${G.proving.reward} ▤ · taken day ${1 + G.proving.day}`);
+          if (G.provingReady) return log(`the door is OPEN — ${G.provingReady.reason} (day ${1 + G.provingReady.day}, offers for 6) — ask at any living well`);
+          log('✗ no proving, no open door. impactful moments open it: wars ended, the record read, epics done, stars cored');
+        });
+        btn(r, 'open the door (free)', () => { g().openProving('workbench fiat'); log('→ the door is open — any living well offers THE PROVING for 6 days'); });
+        btn(r, 'port to the proving', () => {
+          const pv = g().proving;
+          pv ? port(pv.x + 50, pv.z, pv.megaName + ' (the proving ground)') : log('✗ no active proving');
+        });
+        btn(r, 'abandon the proving', () => {
+          const G = g();
+          if (!G.proving) return log('✗ nothing to abandon');
+          G.proving = null;
+          if (G.tracked && G.tracked.kind === 'proving') G.tracked = null;
+          log('→ the form goes back in the drawer. the well pretends not to mind');
+        });
+      }));
       c.appendChild(sec('RAIDS, BLOOMS & THE SKY', (el) => {
         const r = row(el);
         btn(r, 'force RAID (nearest still)', () => { const s = nearestStill(); if (!s) return log('✗ none'); g().eventSys.forceRaid(s); log(`→ a raid gathers against ${s.name}`); });
@@ -892,6 +913,67 @@ export function initDebug(getGame) {
         btn(r, 'befriend (disp 50)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = 50; log(`→ ${b.n.name} counts you as kin`); });
         btn(r, 'sour (disp −40)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = -40; log(`→ ${b.n.name} wants you gone`); });
         btn(r, 'fell them', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); b.n.hp = 0; log(`→ ${b.n.name} falls (natural death pipeline — memorial, chains, gossip all fire)`); });
+        btn(r, 'old one? (nearest soul)', async () => {
+          const { oldOneOf } = await import('./dialogue.js');
+          const b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const old = oldOneOf(b.n);
+          log(old ? `${b.n.name} IS an Old One — the ${old.series} series.\nthe fragment they keep: ${old.fragment}` : `${b.n.name} is desert-born, like almost everyone`);
+        });
+        btn(r, 'find an old one (scan near rosters)', async () => {
+          const { oldOneOf } = await import('./dialogue.js');
+          const G = g();
+          // the gate is a pure hash on the id — but scan ONLY indices that
+          // will actually SPAWN: replicate the roster math (residents, stage
+          // trim, funded homes), conservatively where the stage is unjudged
+          const liveCount = (s) => {
+            const worksHomes = ((G.stakeWorks[s.key] || {}).homes || 0);
+            const st = G.stillStates[s.key];
+            const stage = st ? st.stage : null;
+            if (stage !== null && stage <= -2) return worksHomes;
+            const base = stage === null || stage === -1
+              ? Math.max(2, Math.floor((s.residents || 4) * 0.6)) // the lean floor: never promise more
+              : (s.residents || 4) + (stage >= 1 ? 2 : 0);
+            return worksHomes + base;
+          };
+          for (const s of G.stills.stillsNear(pos().x, pos().z, 40000)
+            .sort((a, b2) => Math.hypot(a.x - pos().x, a.z - pos().z) - Math.hypot(b2.x - pos().x, b2.z - pos().z))) {
+            const n = liveCount(s);
+            for (let i = 0; i < n; i++) {
+              if (oldOneOf({ id: 'npc:' + s.key + ':' + i })) {
+                return log(`→ an Old One keeps at ${s.name} (${(Math.hypot(s.x - pos().x, s.z - pos().z) / 1000).toFixed(1)}km) — roster soul #${i} of ${n} guaranteed spawns. porting…`)
+                  || port(s.x + 10, s.z, s.name + ' (an Old One keeps here)');
+              }
+            }
+          }
+          log('✗ no Old One within 40km of GUARANTEED roster slots — they are 3 in 100 and the lean stills hide some; judge a still (EVENTS) and rescan, or range farther');
+        });
+        btn(r, 'witnesses of nearest soul', () => {
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const ws = G.witnessedOf(b.n);
+          log(ws.length ? `${b.n.name} — testifies to:\n` + ws.map(w => w.t === 'war' ? `· the campaign at ${w.stillName} (${w.outcome})` : `· "${w.entry.slice(0, 80)}…"`).join('\n')
+            : `${b.n.name} has witnessed nothing the ledgers hold (their still has no history yet)`);
+        });
+        btn(r, 'relations of nearest soul', () => {
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const rels = G.resolveRelations(b.n);
+          if (!rels.length) return log(`${b.n.name} keeps to themselves — no relations resolved here`);
+          log(`${b.n.name} — THE WEB\n` + rels.map(r => r.scope === 'yard'
+            ? `· ${r.kind.key}: ${r.name} (same yard, both mouths agree)`
+            : `· ${r.kin}: ${r.name} @ ${r.still.name} (${(Math.hypot(r.still.x - pos().x, r.still.z - pos().z) / 1000).toFixed(1)}km)`).join('\n'));
+        });
+        btn(r, 'life of nearest soul', async () => {
+          const { lifeOf } = await import('./dialogue.js');
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const life = lifeOf(b.n);
+          const lived = G.lived[G.livedKeyOf(b.n)] || [];
+          log(`${b.n.name} — THE LIFE (derived + lived)\n${life.arc}.\n` +
+            life.events.map(e => '· ' + e).join('\n') +
+            (lived.length ? '\nSINCE KNOWING YOU:\n' + lived.map(e => `  day ${e.day} — ${e.text}`).join('\n') : '\n(nothing lived on your watch yet)'));
+        });
         btn(r, 'memory? (what they told you)', () => {
           const G = g(), b = nearestResident();
           if (!b) return log('✗ nobody within 120 m');
