@@ -147,7 +147,15 @@ export class TopicSystem {
       let pool = c.by[temp] || DEFLECT[temp];
       // trusted friends hear the deeper verses, often
       if (effD >= 50 && c.warm && c.warm[temp]) pool = [...pool, ...c.warm[temp], ...c.warm[temp]];
-      return { text: decorate(rand.pick(pool), npc, rand) };
+      // THE WEAVE: what this mouth already told you about this idea retires
+      const mem = g.spoken && g.spoken[npc.id];
+      if (mem && mem.said) {
+        const fresh = pool.filter(l => !mem.said.includes(hashString(l) >>> 0));
+        if (fresh.length) pool = fresh;
+      }
+      const raw = rand.pick(pool);
+      if (mem && mem.said) { mem.said.push(hashString(raw) >>> 0); if (mem.said.length > 40) mem.said.shift(); }
+      return { text: decorate(raw, npc, rand) };
     }
     if (kind === 'y') {
       // THE WALKER: every creed answers for what you are — and often adds

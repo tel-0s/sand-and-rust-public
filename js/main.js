@@ -33,7 +33,7 @@ import {
   aboutSelf, buyPrice, sellPrice, partPrice, MAT_VALUES, CONSUMABLE_VALUES,
   residentGossip, neighborGossip, noNeighbors, gossipDry, eventLine, WELL_FLAVOR,
   roadTalk, recruitLine, dismissLine, downLine, MARKET_TALK, decorate, taleLine, BANTER,
-  WANT_SAY, WANT_DONE } from './dialogue.js';
+  WANT_SAY, WANT_DONE, composeGreeting, pickAsk, composeSmalltalk } from './dialogue.js';
 import { saveGame, loadGame, clearSave, listSaves } from './save.js';
 import { TopicSystem } from './topics.js';
 import { InteriorSystem } from './interiors.js';
@@ -253,6 +253,7 @@ class Game {
     this.kits = {};               // THE KIT: gear kept for parted company, by soul's name — the pack waits for them
     this.companions = {};         // THE JOINT LEDGER: name -> { stories, kinds, epithet } — the company's own legends
     this.bandName = null;         // THE BAND NAMED: what the yards call the whole company, once they do
+    this.spoken = {};             // THE MEMORY: id -> { met, lastDay, said: [line-hashes, capped] } — what each mouth told you
     this._staticT = 0;            // seconds of visible reassembly hum after arrival
     this._megaZones = new Map();  // live safe zones for restored anchors
     this.events = [];             // deeds that travel ahead of you
@@ -752,6 +753,7 @@ class Game {
     this.kits = d.kits || {};
     this.companions = d.companions || {};
     this.bandName = d.bandName || null;
+    this.spoken = d.spoken || {};
     this.deadNpcIds = d.deadNpcIds || [];
     this.destroyedNests = d.destroyedNests || {};
     this.histories = d.histories || {};
@@ -1907,12 +1909,32 @@ class Game {
       if (!String(npc.role).includes('called')) npc.role = `${npc.role} · called ${ep}`;
     }
     npc._epithet = this.epithetKnownTo(npc) ? this.epithet : null;
+    // THE VOICES: the valley's speech-ground — the body dialects of the
+    // Menagerie get mouths. Keyed on the same ~2.6km lineage cells, derived
+    // from the soul's home ground, never saved.
+    if (npc._dialectIdx === undefined && npc.still && npc.still.x !== undefined) {
+      npc._dialectIdx = hash2(this.seed,
+        Math.round(npc.still.x / 2600) * 73 + 7, Math.round(npc.still.z / 2600) * 73 + 11) % 8;
+    }
     npc._legend = this.stories.find(s => s.kind === 'other' && s.subject && s.subject.alive
       && npc.still && s.subject.stillKey === npc.still.key && s.subject.name === npc.name) || null;
     this.dlg = { npc, view: 'root', lines: [], rand: new Rand((Math.random() * 0xffffffff) >>> 0) };
     this.topicsSys.openContext(npc);
-    const { tier } = this.calcDisp(npc);
-    this.dlg.lines.push({ text: greeting(npc, tier.cls, this.dlg.rand) });
+    const { effD, tier } = this.calcDisp(npc);
+    // THE MEMORY: the acquaintance shapes the greeting (hostility overrules it)
+    const mem = this.spoken[npc.id] || (this.spoken[npc.id] = { met: 0, lastDay: -999, said: [] });
+    const day = Math.floor(this.worldT);
+    const gap = mem.met > 0 ? day - mem.lastDay : 0;
+    mem.met++; mem.lastDay = day;
+    let greet = null;
+    if (tier.cls !== 'hostile' && !npc.isFollower) {
+      const stage = mem.met === 1 ? 'first'
+        : gap > 12 ? 'longgap'
+        : (effD >= 50 && mem.met >= 4) ? 'friend'
+        : mem.met >= 4 ? 'regular' : 'back';
+      greet = composeGreeting(npc, stage, { days: gap }, this.dlg.rand);
+    }
+    this.dlg.lines.push({ text: greet || greeting(npc, tier.cls, this.dlg.rand) });
     this.deliverRumors(npc);
     // THE FORMER LIFE: one living soul knew the name — and knows the gait
     if (!this.formerLife.soul && this.txLeaks >= 1 && npc.still && !npc.isWell && !npc.isRust && !npc.isNest) {
@@ -2072,8 +2094,9 @@ class Game {
       if (!line) continue;
       list.forEach(o => { o._banterCd = Math.max(o._banterCd, 28); }); // never two mouths inside half a minute
       const c = this.companions[f.name];
-      this.ui.banter(c && c.epithet ? `${f.name} ${c.epithet}` : f.name, line);
-      this.audio.speak(hashString(line) >>> 0, f.temperament || 'scavver');
+      const spoken = decorate(line, f, new Rand((Math.random() * 0xffffffff) >>> 0));
+      this.ui.banter(c && c.epithet ? `${f.name} ${c.epithet}` : f.name, spoken);
+      this.audio.speak(hashString(spoken) >>> 0, f.temperament || 'scavver');
       return;
     }
   }
@@ -2126,11 +2149,16 @@ class Game {
       const l = tryKey('want:' + Math.floor(day / 2) + (late ? ':late' : ''), pool);
       if (l) return l.replaceAll('{target}', c.want.name || '');
     }
-    // and when nothing presses: musings, every couple of minutes
+    // and when nothing presses: musings, every couple of minutes — THE
+    // WEAVE runs the companions through the same loom: two composed
+    // day-lines join their hand-written idles
     if (f._idleT > 110 + (f._idleN || 0) % 3 * 40) {
       f._idleT = 0; f._idleN = (f._idleN || 0) + 1;
+      const salt = hash2(this.seed, hashString(f.name) | 0, day + 4441);
       const pool = [...BANTER.idle.any, ...(BANTER.idle[f.temperament] || []),
-        ...(c && c.loyalty ? BANTER.sworn : [])];
+        ...(c && c.loyalty ? BANTER.sworn : []),
+        composeSmalltalk(f, new Rand(salt >>> 0)),
+        composeSmalltalk(f, new Rand((salt + 7919) >>> 0))];
       return pick(pool);
     }
     return null;
@@ -3029,6 +3057,14 @@ class Game {
       opts.push({ id: 'back', label: '← let them keep it', cls: 'leave' });
       return opts;
     }
+    if (d.pendingAsk) {
+      // THE WEAVE: they asked you something — the floor is yours
+      d.pendingAsk.replies.forEach((r, i) => {
+        opts.push({ id: 'askreply:' + i, label: '“' + r[0] + '”' });
+      });
+      opts.push({ id: 'askreply:none', label: 'leave it unanswered', cls: 'leave' });
+      return opts;
+    }
     if (d.view === 'record') {
       const des = formerDesignation(this.seed);
       const choice = this.formerLife.choice;
@@ -3342,6 +3378,23 @@ class Game {
 
     // ---- topics: ask after a subject ----
     // ---- the intake record: the source speaks (THE TRANSMISSION b4) ----
+    if (id.startsWith('askreply:')) {
+      const ask = d.pendingAsk;
+      d.pendingAsk = null;
+      if (ask && id !== 'askreply:none') {
+        const r = ask.replies[Number(id.slice(9))];
+        if (r) {
+          say(decorate(r[1], npc, rand));
+          if (r[2]) this.npcDisp[npc.id] = Math.max(-40, Math.min(40, (this.npcDisp[npc.id] || 0) + r[2]));
+        }
+      } else if (ask) {
+        say(decorate(rand.pick([
+          'mm. the desert answers most questions with walking too.',
+          'fair. some questions are just doors held open.',
+        ]), npc, rand));
+      }
+      this.renderDlg(); return;
+    }
     if (id.startsWith('rec:')) {
       const des = formerDesignation(this.seed);
       if (id === 'rec:who') {
@@ -3636,7 +3689,27 @@ class Game {
         // ground the smalltalk in what actually stands nearby
         const megas = this.world.megasNear(npc.still.x, npc.still.z, 2400);
         const m = megas[0] || null;
+        const mem2 = this.spoken[npc.id] || (this.spoken[npc.id] = { met: 1, lastDay: Math.floor(this.worldT), said: [] });
+        // THE WEAVE: a conversation is two mouths — once acquainted, a
+        // soul may turn a beat around and ask YOU something (once per talk)
+        d.talkBeats = (d.talkBeats || 0) + 1;
+        if (!d.asked && d.talkBeats >= 2 && mem2.met >= 2 && !npc.isFollower && rand.chance(0.28)) {
+          d.asked = true;
+          d.pendingAsk = pickAsk(npc, rand);
+          say(decorate(d.pendingAsk.q, npc, rand));
+          this.renderDlg(); return;
+        }
         say(smalltalk(npc, rand, {
+          said: new Set(mem2.said),
+          onSaid: (h) => { mem2.said.push(h); if (mem2.said.length > 40) mem2.said.shift(); },
+          speechSalt: hash2(this.seed, hashString(npc.id || npc.name) | 0, Math.floor(this.worldT) + 8887),
+          // b2 THE SUBJECTS: the true facts the grounded grammar may bind
+          yourName: npc._epithet || null,
+          bandKnown: this.bandName && this.stories.some(s => s.id === 'story:band'
+            && ('*' in s.roots || npc.still.key in s.roots)) ? this.bandName : null,
+          roadsCut: this.caravans.routesNear(npc.still.x, npc.still.z)
+            .filter(rt => (this.routesCut[rt.key] || 0) > this.worldT).length,
+          crewsBusy: (this.pendingWorks[npc.still.key] || []).length > 0,
           region: this.world.regionName(npc.still.x, npc.still.z),
           landmark: npc.still.landmark ? npc.still.landmark.name : null,
           mega: m ? { name: m.name, dir: bearingWord(m.x - npc.still.x, m.z - npc.still.z) } : null,

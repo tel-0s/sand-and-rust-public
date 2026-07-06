@@ -87,6 +87,7 @@ export function saveGame(g) {
       formerLife: g.formerLife,
       kits: g.kits,
       companions: g.companions,
+      spoken: g.spoken,
       deepMarked: g.deepMarked,
       stories: g.stories,
       fullBloom: g.fullBloom,

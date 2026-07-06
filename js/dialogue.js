@@ -1,10 +1,86 @@
 // Dialogue & disposition. Lines are grown from temperament-keyed grammars over
 // a small blackboard of true facts; rumors point at places that really exist.
-import { Rand } from './rng.js';
+import { Rand, hashString } from './rng.js';
+import { expand } from './grammar.js';
+import { SPEECH, GROUNDED, MEETINGS, IDIOLECT, DIALECTS, ASKS } from '../data/speech.js';
 import {
   GREET_EXT, SMALLTALK_EXT, OPINION_EXT, ROAD_EXT, WELL_EXT, EVENT_EXT,
   QUIRK_ADDRESS_EXT, QUIRK_TAG_EXT, ORIGIN_EXT,
 } from '../data/voices.js';
+
+// THE TONGUES: an utterance composed from the fragment grammars — the
+// name machinery, generalized to speech. Same rand in, same sentence out.
+export function composeSmalltalk(npc, rand) {
+  const rules = SPEECH[npc.temperament] || SPEECH.scavver;
+  return expand(rules, '#origin#', rand);
+}
+
+// b2 THE SUBJECTS: a grounded utterance — a fragment family keyed to a
+// TRUE fact of the moment, stanced per temperament where the creeds
+// would differ, with {facts} bound in by the caller
+export function composeGrounded(npc, key, facts, rand) {
+  const G = GROUNDED[key];
+  if (!G) return null;
+  const stancePool = (G.stance && (G.stance[npc.temperament] || G.stance.any)) || null;
+  const rules = { ...G.rules };
+  // temperament stance merges with the shared pool: the creed colors it,
+  // the desert still agrees on the facts
+  const anyPool = G.stance && G.stance.any ? G.stance.any : [];
+  const key2 = Object.keys(rules).find(k => k.startsWith('stance'));
+  rules[key2 || 'stance'] = stancePool && stancePool !== anyPool ? [...stancePool, ...anyPool] : (stancePool || ['']);
+  // the origin references #stance#/#stancename#/etc — normalize: expose all
+  for (const sk of ['stance', 'stancename', 'stanceband', 'stanceroads', 'stancecrews', 'stanceward', 'stancetrade', 'stancemend', 'stancekeep']) {
+    if (!rules[sk]) rules[sk] = rules[key2 || 'stance'];
+  }
+  let line = expand(rules, '#origin#', rand);
+  for (const [k, v] of Object.entries(facts || {})) line = line.replaceAll('{' + k + '}', String(v));
+  return line;
+}
+
+// b3 THE MEMORY: a greeting shaped by the acquaintance — first meeting,
+// a return, a regular, a friend, or a long gap since the last one
+export function composeGreeting(npc, stage, facts, rand) {
+  const G = MEETINGS[stage];
+  if (!G) return null;
+  const anyPool = (G.stance && G.stance.any) || [];
+  const pool = (G.stance && G.stance[npc.temperament]) || null;
+  const rules = { ...G.rules, stance: pool ? [...pool, ...anyPool] : anyPool };
+  let line = expand(rules, '#origin#', rand);
+  for (const [k, v] of Object.entries(facts || {})) line = line.replaceAll('{' + k + '}', String(v));
+  return line;
+}
+
+// spoken-line callbacks: when a soul has said everything they hold, they
+// own the repetition instead of pretending it is new
+const CALLBACK = [
+  'as i told you — ',
+  'i said it before and it held: ',
+  'you have heard this one, but it bears the weight: ',
+  'same as last time, because it is still true: ',
+  'stop me if you know it. actually, don’t: ',
+];
+
+// b5 THE WEAVE: the question a soul turns back on you
+export function pickAsk(npc, rand) {
+  const pool = [...(ASKS[npc.temperament] || []), ...ASKS.any];
+  return rand.pick(pool);
+}
+
+// which grounded families are true right now, and with what facts
+export function groundedKeys(npc, ctx) {
+  const out = [];
+  if (ctx.season && GROUNDED['season_' + ctx.season]) out.push(['season_' + ctx.season, {}]);
+  if (ctx.yourName) out.push(['yourname', { name: ctx.yourName }]);
+  if (ctx.bandKnown) out.push(['band', { band: ctx.bandKnown }]);
+  if (ctx.roadsCut > 0) out.push(['roadscut', { n: ctx.roadsCut, s: ctx.roadsCut === 1 ? '' : 's' }]);
+  if (ctx.crewsBusy) out.push(['crews', {}]);
+  const role = String(npc.role || '');
+  if (/warden|guard|outrider/.test(role)) out.push(['role_ward', {}]);
+  else if (/broker|trader|merchant|courier/.test(role)) out.push(['role_trade', {}]);
+  else if (/tinker|mender|smith/.test(role)) out.push(['role_mend', {}]);
+  else if (/keeper|sweeper|abbot/.test(role)) out.push(['role_keep', {}]);
+  return out;
+}
 
 export const TEMPERAMENTS = {
   mercantile: {
@@ -73,6 +149,24 @@ export function partPrice(part, temperament) {
 // ---------- voice: every resident speaks a little differently ----------
 export const QUIRK_ADDRESS = ['wanderer', 'sparrow', 'new-boots', 'friend-shape', 'walker', 'tin-pilgrim', 'salt-cousin', 'stranger-mine'];
 export const QUIRK_TAG = ['so it goes.', 'as the salt keeps us.', 'mind the wind.', 'hm.', 'the well hears.', '—but what do i know.', 'rust willing.', 'count your bolts.'];
+// b4 THE VOICES: a soul's idiolect, derived from their identity — the
+// same mouth keeps the same habits forever, and nothing is saved
+export function voiceOf(npc) {
+  const h = hashString(npc.id || npc.name || 'soul') >>> 0;
+  return {
+    inter: [IDIOLECT.inter[h % IDIOLECT.inter.length], IDIOLECT.inter[(h >>> 4) % IDIOLECT.inter.length]],
+    swaps: IDIOLECT.swapsets[(h >>> 8) % IDIOLECT.swapsets.length],
+    tic: IDIOLECT.tics[(h >>> 12) % IDIOLECT.tics.length],
+    interRate: 0.12 + ((h >>> 16) % 12) / 100,  // 0.12–0.23: some souls open more
+    ticRate: 0.06 + ((h >>> 20) % 8) / 100,     // 0.06–0.13
+  };
+}
+
+const swapWords = (t, swaps) => {
+  for (const [from, to] of swaps) t = t.replace(new RegExp('\\b' + from + '\\b', 'g'), to);
+  return t;
+};
+
 export function decorate(text, npc, rand) {
   if (!npc || !npc.quirk) return text;
   // where the naming story has reached, the desert uses YOUR name —
@@ -80,6 +174,19 @@ export function decorate(text, npc, rand) {
   // game (which knows what this still knows)
   const addr = npc._epithet && rand.chance(0.65) ? npc._epithet : npc.quirk.address;
   let t = text.replace(/\bwanderer\b/g, addr);
+  // THE VOICES: private vocabulary always (it IS their word for it);
+  // the valley's dialect always (ground-speech); at most ONE flourish
+  // per line — an opener or a tic, never both, and mostly neither
+  const v = voiceOf(npc);
+  t = swapWords(t, v.swaps);
+  const d = npc._dialectIdx !== undefined ? DIALECTS[npc._dialectIdx % DIALECTS.length] : null;
+  if (d) t = swapWords(t, d.swaps);
+  if (rand.chance(v.interRate)) {
+    const useDialect = d && rand.chance(0.25);
+    t = (useDialect ? d.inter : rand.pick(v.inter)) + ' ' + t;
+  } else if (rand.chance(v.ticRate)) {
+    t += v.tic;
+  }
   if (rand.chance(npc.quirk.tagChance || 0.3)) t += ' ' + npc.quirk.tag;
   return t;
 }
@@ -568,6 +675,23 @@ export function greeting(npc, tierCls, rand) {
 export function smalltalk(npc, rand, ctx) {
   const t = SMALLTALK[npc.temperament];
   const pool = [...t.base];
+  // THE TONGUES: composed lines join the pool, weighted to dominate it —
+  // seeded per (soul, day), so a soul holds their stories for a day but
+  // the yard never speaks in unison, and tomorrow brings new ones
+  if (ctx.speechSalt !== undefined) {
+    for (let k = 0; k < 3; k++) {
+      const line = composeSmalltalk(npc, new Rand((ctx.speechSalt + k * 7919) >>> 0));
+      pool.push(line, line); // ×2: composition carries the channel
+    }
+    // b2: everything TRUE becomes sayable — one composed line per live
+    // subject, held for the day like the rest of the soul's stories
+    const grounds = groundedKeys(npc, ctx);
+    for (let i = 0; i < grounds.length; i++) {
+      const [key, facts] = grounds[i];
+      const line = composeGrounded(npc, key, facts, new Rand((ctx.speechSalt + 31337 + i * 6301) >>> 0));
+      if (line) pool.push(line, line);
+    }
+  }
   if (ctx.mega) pool.push(...t.mega, ...t.mega); // grounded lines surface often
   if (ctx.isNight) pool.push(...t.night);
   if (ctx.storm > 0.25) pool.push(...t.storm, ...t.storm);
@@ -623,10 +747,21 @@ export function smalltalk(npc, rand, ctx) {
       .replaceAll('{settlers}', String(ctx.stakePride.settlers))));
   }
   const bare = (ctx.region || '').replace(/^the\s+/i, '');
-  let line = rand.pick(pool).replaceAll('{region}', bare);
+  // b3 THE MEMORY: what this soul has already told YOU retires from the
+  // pool — until the pool runs dry, at which point they own the repeat
+  let callback = '';
+  let pickPool = pool;
+  if (ctx.said && ctx.said.size) {
+    const fresh = pool.filter(l => !ctx.said.has(hashString(l) >>> 0));
+    if (fresh.length) pickPool = fresh;
+    else callback = rand.pick(CALLBACK);
+  }
+  const raw = rand.pick(pickPool);
+  if (ctx.onSaid) ctx.onSaid(hashString(raw) >>> 0); // the TEMPLATE is the thought; facts and quirks vary around it
+  let line = raw.replaceAll('{region}', bare);
   if (ctx.mega) line = line.replaceAll('{megaName}', ctx.mega.name).replaceAll('{megaDir}', ctx.mega.dir);
   if (ctx.landmark) line = line.replaceAll('{landmark}', ctx.landmark);
-  return decorate(line, npc, rand);
+  return callback + decorate(line, npc, rand);
 }
 export function rumorText(npc, mega, from, rand) {
   const dx = mega.x - from.x, dz = mega.z - from.z;

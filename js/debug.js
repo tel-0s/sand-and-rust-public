@@ -892,6 +892,19 @@ export function initDebug(getGame) {
         btn(r, 'befriend (disp 50)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = 50; log(`→ ${b.n.name} counts you as kin`); });
         btn(r, 'sour (disp −40)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = -40; log(`→ ${b.n.name} wants you gone`); });
         btn(r, 'fell them', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); b.n.hp = 0; log(`→ ${b.n.name} falls (natural death pipeline — memorial, chains, gossip all fire)`); });
+        btn(r, 'memory? (what they told you)', () => {
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const mem = G.spoken[b.n.id];
+          if (!mem) return log(`${b.n.name} has never spoken with you`);
+          log(`${b.n.name} — met ${mem.met}×, last day ${1 + mem.lastDay}\n${mem.said.length} thoughts spent (retire from their pool; at 40 the oldest return)`);
+        });
+        btn(r, 'forget me (nearest soul)', () => {
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          delete G.spoken[b.n.id];
+          log(`→ ${b.n.name} forgets every conversation — the next hello is a first meeting`);
+        });
         btn(r, 'disposition math', () => {
           const G = g(), b = nearestResident();
           if (!b) return log('✗ nobody within 120 m');
@@ -1292,6 +1305,79 @@ export function initDebug(getGame) {
           log(`→ chain accepted: ${pendingChain.title}`);
           pendingChain = null;
         }, 'act');
+      }));
+      c.appendChild(sec('THE TONGUES — composed speech (ARC XIII)', (el) => {
+        const r = row(el);
+        const temper = sel(r, [['scavver', 'scavver'], ['mercantile', 'mercantile'], ['monastic', 'monastic'], ['ferrocult', 'ferro-cult']]);
+        btn(r, 'compose 10', async () => {
+          const { composeSmalltalk } = await import('./dialogue.js');
+          const fake = { temperament: temper.value };
+          const lines = [];
+          for (let i = 0; i < 10; i++) lines.push('· ' + composeSmalltalk(fake, rnd()));
+          log(`COMPOSED — ${temper.value}\n` + lines.join('\n'));
+        });
+        btn(r, 'compose 10 (nearest soul, their day-lines first)', async () => {
+          const { composeSmalltalk } = await import('./dialogue.js');
+          const { hash2, hashString, Rand } = await import('./rng.js');
+          const b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const G = g();
+          const salt = hash2(G.seed, hashString(b.n.id || b.n.name) | 0, Math.floor(G.worldT) + 8887);
+          const today = [0, 1, 2].map(k => '◆ ' + composeSmalltalk(b.n, new Rand((salt + k * 7919) >>> 0)));
+          const more = [];
+          for (let i = 0; i < 7; i++) more.push('· ' + composeSmalltalk(b.n, rnd()));
+          log(`${b.n.name} (${b.n.temperament}) — ◆ = held today, · = other days\n` + today.join('\n') + '\n' + more.join('\n'));
+        });
+        btn(r, 'breadth check (200 draws)', async () => {
+          const { composeSmalltalk } = await import('./dialogue.js');
+          const seen = new Set();
+          for (let i = 0; i < 200; i++) seen.add(composeSmalltalk({ temperament: temper.value }, rnd()));
+          log(`→ ${temper.value}: ${seen.size}/200 distinct compositions`);
+        });
+        const r2 = row(el);
+        btn(r2, 'grounded: all subjects (this temper)', async () => {
+          const { composeGrounded } = await import('./dialogue.js');
+          const { GROUNDED } = await import('../data/speech.js');
+          const fake = { temperament: temper.value, role: 'warden' };
+          const facts = { name: 'the Walker', band: 'the Standing Watch', n: 2, s: 's' };
+          const lines = Object.keys(GROUNDED).map(k => `[${k}] ${composeGrounded(fake, k, facts, rnd())}`);
+          log(`GROUNDED — ${temper.value}\n` + lines.join('\n'));
+        });
+        btn(r2, 'preview the asks (this temper)', async () => {
+          const { pickAsk } = await import('./dialogue.js');
+          const lines = [];
+          for (let i = 0; i < 4; i++) {
+            const a = pickAsk({ temperament: temper.value }, rnd());
+            lines.push('Q: ' + a.q + '\n' + a.replies.map(r => `   “${r[0]}” → ${r[1]} (${r[2] >= 0 ? '+' : ''}${r[2]})`).join('\n'));
+          }
+          log(`THE ASKS — ${temper.value}\n` + lines.join('\n'));
+        });
+        btn(r2, 'voice of nearest soul', async () => {
+          const { voiceOf } = await import('./dialogue.js');
+          const { DIALECTS } = await import('../data/speech.js');
+          const b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const v = voiceOf(b.n);
+          const d = b.n._dialectIdx !== undefined ? DIALECTS[b.n._dialectIdx % DIALECTS.length] : null;
+          log(`${b.n.name} — THE VOICE (derived, never saved)\nopeners: ${v.inter.join(' / ')} (${Math.round(v.interRate * 100)}%)\nvocabulary: ${v.swaps.map(s => s[0] + '→' + s[1]).join(', ')}\ntic: “${v.tic.trim()}” (${Math.round(v.ticRate * 100)}%)\ndialect: ${d ? d.swaps.map(s => s[0] + '→' + s[1]).join(', ') + ' · “' + d.inter + '”' : '(speak with them once to bind the valley)'}`);
+        });
+        btn(r2, 'grounded: nearest soul, live facts', async () => {
+          const { composeGrounded, groundedKeys } = await import('./dialogue.js');
+          const b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const G = g(), npc = b.n;
+          const ctx = {
+            season: G.season ? G.season.id : null,
+            yourName: G.epithet,
+            bandKnown: G.bandName,
+            roadsCut: G.caravans.routesNear(npc.still.x, npc.still.z).filter(rt => (G.routesCut[rt.key] || 0) > G.worldT).length,
+            crewsBusy: (G.pendingWorks[npc.still.key] || []).length > 0,
+          };
+          const grounds = groundedKeys(npc, ctx);
+          if (!grounds.length) return log('✗ nothing presses — no live subjects for this soul right now');
+          log(`${npc.name} (${npc.temperament}, ${npc.role}) — live subjects:\n`
+            + grounds.map(([k, f]) => `[${k}] ${composeGrounded(npc, k, f, rnd())}`).join('\n'));
+        });
       }));
       c.appendChild(sec('TESTIMONY', (el) => {
         const r = row(el);

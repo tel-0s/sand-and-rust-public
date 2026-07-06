@@ -935,6 +935,160 @@ THE BUILDS.
   rites), war stories and campaign epithets on the Legend substrate,
   gossip saturation, the balance pass, Workbench completion.
 
+## build 2026.7.95 — "The Tongues" (ARC XIII, build 5) — ✅ SHIPPED · ARC COMPLETE
+
+THE WEAVE — one loom for every mouth, and the mouths ask back.
+
+- ✅ **THE ASKS** (the crown's new thread): once acquainted (met ≥ 2),
+  a soul may turn a talk beat around — one question per conversation,
+  never more (28% after the second beat). Five families: shared
+  ('where do you actually sleep?') and per-creed (the broker: 'what is
+  the strangest thing you have ever paid with?'; the monk: 'when you
+  pass the rim, do you read the names, or walk by?'; the scavver:
+  'settle a yard argument — best thing you ever pulled out of the
+  ground?'; the cultist: 'your parts — do they dream?'). The floor
+  becomes yours: 2–3 replies (plus 'leave it unanswered'), each with
+  its own voiced response and a small shift in regard.
+- ✅ **The loom reaches every channel** (the producer's note, exactly):
+  topic/concept answers now retire through the same said-ledger as
+  smalltalk (proven: one hash per answer, none repeated); companion
+  banter runs through the grammar (two composed day-lines join every
+  idle pool) AND through decorate — the company speaks in their own
+  voices and vocabularies on the road, duo exchanges included.
+- ✅ **Balance**: the ask never fires for followers (banter is their
+  channel), never before acquaintance, never twice in a talk; composed
+  banter joins rather than replaces the hand-written idles.
+- ✅ Workbench GEN: preview-the-asks per temperament with reply trees.
+- Verified: round110 (14 checks — asks sound all tongues/live flow
+  question → replies rendered → response + regard → once-per-talk/
+  concept retirement through the ledger/banter composed + voiced/
+  bench), boot clean, regression 61 fps.
+
+**ARC XIII — THE TONGUES: COMPLETE.** The Grammar, the Subjects, the
+Memory, the Voices, the Weave. Speech is composed, not selected;
+grounded in what is true; spent without repeating; voiced per soul and
+per valley; woven through every channel — and the desert now asks the
+walker questions of its own. The producer's diagnosis, answered: the
+underlying system finally has the leeway it deserved.
+
+## build 2026.7.94 — "The Tongues" (ARC XIII, build 4) — ✅ SHIPPED
+
+THE VOICES — idiolects and valley dialects, derived, never saved.
+
+- ✅ **The idiolect**: every soul's voice derives from their identity
+  hash — two favored openers ('truth told —', 'as the dunes are
+  long —'), one private vocabulary set (their word for it: desert→big
+  quiet, storm→howler, machines→irons, night→the dark…), one trailing
+  tic (' as my mother built me to say.'), and personal rates. Zero
+  save fields: the same mouth keeps the same habits forever, for free.
+- ✅ **Valley dialects**: the ~2.6 km lineage grounds of the Menagerie
+  get MOUTHS — eight regional speech-bendings (wind→the breath,
+  scrap→bones, caravan→bell-train, wall→the shoulder) with a regional
+  opener each ('hereabouts we say —'). A yard shares its ground's
+  tongue; each soul keeps their self. Bound at dialogue-open from the
+  home ground.
+- ✅ **Flourish discipline**: vocabulary always (it IS their word);
+  at most ONE flourish per line — opener or tic, never both, mostly
+  neither (measured 18% / 4% / 0). Applied at the decorate() choke
+  point, so every channel — greetings, smalltalk, gossip, topics —
+  speaks in voice.
+- ✅ Workbench GEN: voice-of-nearest-soul readout (openers, vocabulary,
+  tic, dialect, rates).
+- (iCloud fought the lineageAt import hard enough that the dialect now
+  keys directly on the 2.6 km valley cell — same regionality, one
+  fewer import, and the sync daemon is appeased.)
+- Verified: round109 (13 checks — stability/variety/word-boundary
+  swaps/dialect same-valley + cross-valley/flourish rates/live bind/
+  vocabulary in real talk/yard shares ground, souls keep selves/
+  bench), boot clean, regression 61 fps.
+
+## build 2026.7.93 — "The Tongues" (ARC XIII, build 3) — ✅ SHIPPED
+
+THE MEMORY — the mouth remembers you.
+
+- ✅ **The acquaintance arc**: every soul keeps `spoken[id] = {met,
+  lastDay, said}` (saved). Greetings compose by the shape of the
+  acquaintance — MEETINGS grammars, stanced per creed: FIRST ('a new
+  face. the letter has not mentioned you'), BACK ('you came back. the
+  stall notices these things'), REGULAR at four meetings ('the
+  children have stopped staring at you. highest local honor'), FRIEND
+  at regard 50+ ('i was hoping the dust was you'), and LONGGAP past
+  twelve days ('well now — {days} days, give or take… i had half-filed
+  you with the missing'). Hostility overrules the pleasantries;
+  followers keep their own manner (banter is their channel).
+- ✅ **Said-retirement**: what a soul has told YOU retires from their
+  pool — hashed on the TEMPLATE (facts and quirks vary around the
+  thought), capped at 40 with the oldest returning. Measured: 30 talk
+  clicks, 30 distinct thoughts, zero early repeats. When the pool
+  truly runs dry they OWN the repetition: 'stop me if you know it.
+  actually, don't:'.
+- ✅ Workbench SOULS: memory? readout (met ×, thoughts spent),
+  forget-me reset.
+- Verified: round108 (17 checks — all stages × tongues clean/the full
+  arc first→back→regular→friend→longgap with the day-count bound/
+  retirement + bound + save/hostility/bench), boot clean, regression
+  61 fps.
+
+## build 2026.7.92 — "The Tongues" (ARC XIII, build 2) — ✅ SHIPPED
+
+THE SUBJECTS — everything true becomes sayable, composably. Plus the
+capitalization fix from the field.
+
+- ✅ **The lowercase fix** (playtest catch): .cap title-cases every word
+  because it was built for NAMES — and the desert speaks lowercase
+  anyway. All 21 .cap modifiers stripped from the speech grammars; the
+  rule is now written into the file header. Measured: zero title-case
+  leaks across 320 compositions.
+- ✅ **GROUNDED — 12 fragment families** that bind live facts: the four
+  seasons (each stanced per-creed — the broker prices the long cold,
+  the monk opens the long room, the scavver digs shallow, the cultist
+  watches the walls), your epithet ('{name}. the stories beat you
+  here'), the band ('the tellers put {band} in three places this
+  week'), cut roads (with the count — 'scarcity is just distance
+  wearing a mask'), crews on the scaffolds, and four role families
+  talking shop (warden/trade/mender/keeper — 'three shoulder-joints
+  and a weeping coolant line before breakfast').
+- ✅ **The rule holds**: composeGrounded binds {facts} and stances
+  per-temperament with shared .any pools; groundedKeys activates only
+  what is TRUE (measured quiet when false). One composed line per live
+  subject joins the soul's day-held stories.
+- ✅ Workbench GEN: grounded-all-subjects preview per temperament, and
+  the nearest soul's LIVE subjects with real facts bound.
+- Verified: round107 (13 checks — lowercase sweep/all 12 families × 4
+  tongues clean/fact binding/creeds color/activation + quiet/live
+  channel share/in-game named + seasonal lines/bench), boot clean,
+  regression 61 fps.
+
+## build 2026.7.91 — "The Tongues" (ARC XIII, build 1) — ✅ SHIPPED
+
+THE GRAMMAR — speech composed, not selected. Season three opens.
+
+- ✅ **data/speech.js (new)**: four temperament tongue-grammars — the
+  #symbol# machinery that names the world, generalized to utterances
+  (opener × subject × stance × tail). ~180 fragment options compose to
+  a space of thousands per temperament; measured breadth 150–166
+  distinct per 200 draws, every tongue. Adding lines is content work.
+- ✅ **The register holds**: composition is bounded by the grammar, so
+  the desert's voice survives — the broker prices ('inventory is grief
+  you can shelve'), the monk sweeps ('a bell rung on time is worth
+  three rung beautifully'), the scavver rules ('you can eat a rumor
+  for about two days. pack accordingly'), the cultist reads ('the
+  bloom is not hunger. hunger stops. the bloom is closer to interest').
+  Temperaments share zero sentences (measured).
+- ✅ **The day-lines**: each soul composes three lines per world-day,
+  seeded per (soul, day) — stable within the day (a soul holds their
+  stories), rotated across days, distinct across souls (the yard never
+  speaks in unison). Composed lines join the smalltalk pool at double
+  weight; b1 fragments are true anywhere by rule — live-context
+  binding is b2.
+- ✅ Workbench GEN — THE TONGUES: compose-10 by temperament, the
+  nearest soul's held day-lines (◆) vs their other days, and a
+  200-draw breadth check.
+- Verified: round106 (13 checks — determinism/no artifacts/breadth all
+  four/voices disjoint/day-line stability + rotation + soul-distinct/
+  live channel share 22-60 + saltless untouched/real-dialogue hit/
+  bench previews), boot clean, regression 60 fps.
+
 ## build 2026.7.90 — the impostor and the ghosts — ✅ SHIPPED
 
 Two field reports, one of them a genuinely good mystery.
