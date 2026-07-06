@@ -68,6 +68,9 @@ export class UI {
       this.mapView.px = Math.min(28, Math.max(2, this.mapView.px * f));
       this.renderMap();
     }, { passive: false });
+    window.addEventListener('resize', () => {
+      if (this.activePanel === 'map') { this.fitMapCanvas(); this.renderMap(); }
+    });
   }
 
   mapToWorld(sx, sy) {
@@ -166,12 +169,13 @@ export class UI {
       this._corrLbl = corrLbl;
       document.querySelector('#corr-row .bar-label').textContent = corrLbl;
     }
-    // the one who walks with you
-    const fol = g.followers && g.followers.follower;
+    // the ones who walk with you — every chair, not just the first
+    const company = g.followers ? g.followers.list() : [];
     const ft = $('follower-tag');
-    if (fol) {
+    if (company.length) {
       ft.classList.remove('hidden');
-      ft.innerHTML = `◆ ${fol.name} — ${fol.archetype === 'mender' ? 'mender' : 'fighter'} <span class="ft-hp">${Math.max(0, Math.ceil(fol.hp))}/${fol.maxHp}</span>`;
+      ft.innerHTML = company.map(f =>
+        `<div>◆ ${f.name} — ${g.followers.shownArchetype(f)} <span class="ft-hp">${Math.max(0, Math.ceil(f.hp))}/${f.maxHp}</span></div>`).join('');
     } else ft.classList.add('hidden');
     $('glitch-overlay').style.opacity = p.corruption > 25 ? Math.min(0.85, (p.corruption - 25) / 80) : 0;
 
@@ -401,7 +405,7 @@ export class UI {
     this.activePanel = name;
     $('panel-' + name).classList.remove('hidden');
     if (name === 'body') this.renderBody();
-    if (name === 'map') { this.centerMapOnPlayer(); this.renderMap(); }
+    if (name === 'map') { this.centerMapOnPlayer(); this.fitMapCanvas(); this.renderMap(); }
     if (name === 'journal') this.renderJournal();
     if (name === 'settings') this.renderSettings();
     document.exitPointerLock && document.exitPointerLock();
@@ -613,14 +617,37 @@ export class UI {
     ctx.fillRect(0, 0, cv.width, cv.height);
     const v = this.mapView;
     const PX = v.px;
-    const half = cv.width / 2;
-    const toScreen = (x, z) => [half + ((x - v.cx) / CHUNK) * PX, half + ((z - v.cz) / CHUNK) * PX];
+    const halfW = cv.width / 2, halfH = cv.height / 2;
+    const toScreen = (x, z) => [halfW + ((x - v.cx) / CHUNK) * PX, halfH + ((z - v.cz) / CHUNK) * PX];
+    // RELIEF: the chart carries the ground's shape — hillshade derived
+    // from the world's own heightfield at render time (pure function of
+    // the seed: nothing stored, cached per session, light from the NW)
+    if (!this._shadeCache) this._shadeCache = new Map();
+    if (!this._rgbCache) {
+      this._rgbCache = {};
+      for (const [id, hex] of Object.entries(MAP_COLORS)) {
+        this._rgbCache[id] = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+      }
+    }
+    ctx.globalAlpha = 0.85;
     for (const [key, biomeId] of g.world.explored) {
       const [cx, cz] = key.split(',').map(Number);
       const [sx, sy] = toScreen(cx * CHUNK, cz * CHUNK);
       if (sx < -PX || sy < -PX || sx > cv.width || sy > cv.height) continue;
-      ctx.fillStyle = MAP_COLORS[biomeId] || '#666';
-      ctx.globalAlpha = 0.8;
+      let sh = this._shadeCache.get(key);
+      if (sh === undefined) {
+        const wx = cx * CHUNK, wz = cz * CHUNK;
+        const h0 = g.world.getHeight(wx, wz);
+        const hx = g.world.getHeight(wx + CHUNK, wz);
+        const hz = g.world.getHeight(wx, wz + CHUNK);
+        // slope toward the NW light brightens; away falls into shadow —
+        // plus a whisper of elevation tint so the high ground reads high
+        sh = 1 + (-(hx - h0) - (hz - h0)) * 0.030 + (h0 - 6) * 0.0035;
+        sh = Math.min(1.32, Math.max(0.60, sh));
+        this._shadeCache.set(key, sh);
+      }
+      const rgb = this._rgbCache[biomeId] || [102, 102, 102];
+      ctx.fillStyle = `rgb(${Math.min(255, rgb[0] * sh) | 0},${Math.min(255, rgb[1] * sh) | 0},${Math.min(255, rgb[2] * sh) | 0})`;
       ctx.fillRect(sx, sy, Math.max(1, PX - 0.5), Math.max(1, PX - 0.5));
     }
     ctx.globalAlpha = 1;
@@ -676,7 +703,7 @@ export class UI {
       ctx.moveTo(sx, sy - 5); ctx.lineTo(sx + 4, sy + 2); ctx.lineTo(sx - 4, sy + 2);
       ctx.fill();
       ctx.fillRect(sx - 1.5, sy + 2, 3, 2.5);
-      ctx.fillText('CARAVAN', sx + 8, sy + 3);
+      ctx.fillText(c.stray ? 'A WALKER' : 'CARAVAN', sx + 8, sy + 3);
     }
     // quest targets
     for (const q of g.quests) {
@@ -730,11 +757,110 @@ export class UI {
       ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(4.5, 5); ctx.lineTo(-4.5, 5); ctx.fill();
       ctx.restore();
     }
-    // legend
-    $('map-legend').innerHTML = BIOMES.map(b =>
-      `<span class="lg"><span class="sw" style="background:${MAP_COLORS[b.id]}"></span>${b.name}</span>`).join('') +
-      `<span class="lg"><span style="color:#ffd27f">◆</span> structure</span><span class="lg"><span style="color:#5fb8a6">⌂</span> still</span><span class="lg"><span style="color:#5fb8a6">✕</span> signal</span>` +
-      `<span class="lg" style="color:var(--amber-dim)">drag: pan · scroll: zoom · click: set/clear waypoint</span>`;
+    // search focus: a ring around the found place, until the next search
+    if (this._mapFocus) {
+      const [sx, sy] = toScreen(this._mapFocus.x, this._mapFocus.z);
+      ctx.strokeStyle = '#ffd27f'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(sx, sy, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(sx, sy, 19, 0, Math.PI * 2); ctx.globalAlpha = 0.4; ctx.stroke();
+      ctx.globalAlpha = 1; ctx.lineWidth = 1;
+    }
+    this.buildMapSide();
+  }
+
+  // the sidebar: terrain, marks, and controls — three sections, one side
+  buildMapSide() {
+    if (this._mapSideBuilt) return;
+    this._mapSideBuilt = true;
+    $('map-side').innerHTML = `
+      <div class="map-sec"><h4>TERRAIN</h4>${BIOMES.map(b =>
+        `<div class="lg"><span class="sw" style="background:${MAP_COLORS[b.id]}"></span>${b.name}</div>`).join('')}</div>
+      <div class="map-sec"><h4>MARKS</h4>
+        <div class="lg"><span style="color:#5fb8a6">⌂</span> still</div>
+        <div class="lg"><span style="color:#ffd27f">◆</span> structure</div>
+        <div class="lg"><span style="color:#ff8a3c">▲</span> camp / caravan</div>
+        <div class="lg"><span style="color:#e8401f">●</span> nest (dim: silenced)</div>
+        <div class="lg"><span style="color:#ff4a4a">✕</span> war front</div>
+        <div class="lg"><span style="color:#5fb8a6">✕</span> signal</div>
+        <div class="lg"><span style="color:#fff">◇</span> task / waypoint</div>
+        <div class="lg"><span style="color:#e8a33d">■</span> anchor</div>
+        <div class="lg"><span style="color:#ff6a3c">➤</span> you</div>
+      </div>
+      <div class="map-sec"><h4>CONTROLS</h4>
+        <div class="lg">drag — pan</div>
+        <div class="lg">scroll — zoom</div>
+        <div class="lg">click — set / clear waypoint</div>
+        <div class="lg">type ⌕ — find a mapped place</div>
+      </div>`;
+    // the search pane: every mapped thing, filtered live, click to focus
+    const inp = $('map-search-in');
+    inp.addEventListener('input', () => this.renderMapSearch());
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const first = document.querySelector('#map-results .map-hit');
+        if (first) first.click();
+      }
+    });
+    this.renderMapSearch();
+  }
+
+  mapSearchIndex() {
+    const g = this.game;
+    const out = [];
+    for (const m of g.world.discovered) {
+      out.push({ name: m.name, kind: m.kind || 'structure', x: m.x, z: m.z });
+    }
+    out.push({ name: 'the anchor (first light)', kind: 'anchor', x: g.anchor.x, z: g.anchor.z });
+    if (g.waypoint) out.push({ name: 'waypoint', kind: 'waypoint', x: g.waypoint.x, z: g.waypoint.z });
+    for (const ch of g.chains) {
+      if (ch.done) continue;
+      const cur = ch.steps[ch.current];
+      if (cur && cur.x !== undefined) out.push({ name: 'task: ' + (ch.noun || ch.id), kind: 'task', x: cur.x, z: cur.z });
+    }
+    if (g.proving) out.push({ name: 'the proving: ' + g.proving.megaName, kind: 'task', x: g.proving.x, z: g.proving.z });
+    return out;
+  }
+
+  renderMapSearch() {
+    const g = this.game;
+    const q = ($('map-search-in').value || '').toLowerCase().trim();
+    const box = $('map-results');
+    const px = g.player.pos.x, pz = g.player.pos.z;
+    const KIND_ICON = { still: ['⌂', '#5fb8a6'], camp: ['▲', '#ff8a3c'], nest: ['●', '#e8401f'], front: ['✕', '#ff4a4a'], anchor: ['■', '#e8a33d'], waypoint: ['◇', '#fff'], task: ['◇', '#fff'] };
+    let hits = this.mapSearchIndex()
+      .filter(m => !q || m.name.toLowerCase().includes(q))
+      .map(m => ({ ...m, dist: Math.hypot(m.x - px, m.z - pz) }))
+      .sort((a, b) => (q ? a.name.toLowerCase().indexOf(q) - b.name.toLowerCase().indexOf(q) : 0) || a.dist - b.dist)
+      .slice(0, 40);
+    box.innerHTML = '';
+    if (!hits.length) {
+      box.innerHTML = `<div style="font-size:10px;color:var(--amber-dim);padding:6px 2px;">${q ? 'nothing mapped by that name — the desert keeps it yet' : 'nothing mapped yet — walk, and the chart fills'}</div>`;
+      return;
+    }
+    for (const m of hits) {
+      const [ic, col] = KIND_ICON[m.kind] || ['◆', '#ffd27f'];
+      const el = document.createElement('div');
+      el.className = 'map-hit';
+      el.innerHTML = `<span><span style="color:${col}">${ic}</span> ${m.name.toUpperCase()}</span><span class="mh-dist">${(m.dist / 1000).toFixed(1)}km</span>`;
+      el.onclick = () => {
+        this.mapView.cx = m.x; this.mapView.cz = m.z;
+        if (this.mapView.px < 6) this.mapView.px = 8;
+        this._mapFocus = { x: m.x, z: m.z };
+        this.renderMap();
+      };
+      box.appendChild(el);
+    }
+  }
+
+  // the canvas backing store matches its on-screen box, so the chart is
+  // crisp at any window size — called on open and on resize
+  fitMapCanvas() {
+    const cv = $('map-canvas');
+    const box = cv.parentElement.getBoundingClientRect();
+    if (box.width > 40 && box.height > 40) {
+      cv.width = Math.round(box.width);
+      cv.height = Math.round(box.height);
+    }
   }
 
   // ---------- journal ----------

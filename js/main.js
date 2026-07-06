@@ -38,6 +38,7 @@ import {
   oldOneOf, witnessLine, warWitnessLine, WANT_WHY, LANE } from './dialogue.js';
 import { saveGame, loadGame, clearSave, listSaves } from './save.js';
 import { TopicSystem } from './topics.js';
+import { PhotoMode } from './photo.js';
 // THE THREADS: a soul at the threatened still owns the waking — never rumor
 const RUMOR_OWN_WAKING = 'the nests around US, walker. our own walls. we do not need the caravans to tell us — we hear the brood-song at dusk.';
 import { InteriorSystem } from './interiors.js';
@@ -259,6 +260,7 @@ class Game {
     this.bandName = null;         // THE BAND NAMED: what the yards call the whole company, once they do
     this.spoken = {};             // THE MEMORY: id -> { met, lastDay, said: [line-hashes, capped] } — what each mouth told you
     this.lived = {};              // THE BIOGRAPHY, the lived chapter: key -> [{day, text}] — what happened to them on YOUR watch (capped)
+    this.photo = null;            // PHOTO MODE: constructed after the renderer exists
     this.proving = null;          // THE PROVING: the active deep-delve contract {megaKey, megaName, megaType, x, z, reward, day}
     this.provingReady = null;     // an impactful moment opened the door: {day, reason} — wells offer for 6 days
     this._staticT = 0;            // seconds of visible reassembly hum after arrival
@@ -411,6 +413,20 @@ class Game {
       safeZones: this.enemies.safeZones, // night fires ward the camps
       herdCrossing: (x, z) => this.herds && this.herds.nearSchedule(x, z, 60, this.worldT),
       onSighted: (c) => {
+        if (c.stray) {
+          // no bells: a lone figure on the open sand announces nothing
+          const m = c.members[0];
+          this.ui.toast(`A LONE WALKER — ${m.name.toUpperCase()}, ${m.role}`, 'good');
+          const metKey = 'cvnmet:' + c.key;
+          if (!this.world.looted.has(metKey)) {
+            this.world.looted.add(metKey);
+            this.journal.push({
+              type: 'lore', cat: 'event', title: 'A STRAY ON THE OPEN SAND',
+              body: `far from any road: ${m.name}, ${m.role}, out of ${m.origin} and bound for ${c.route.b.name}${c.route.megaDest ? ' — the ruin itself, on purpose' : ''}. walking alone, and not lost. day ${1 + Math.floor(this.worldT)}.`,
+            });
+          }
+          return;
+        }
         this.audio.play('bell');
         this.ui.toast(`BELLS ON ${c.pseudoStill.name.toUpperCase()}`, 'good');
         const metKey = 'cvnmet:' + c.key;
@@ -793,6 +809,7 @@ class Game {
     canvas.addEventListener('click', () => {
       this.audio.ensure();
       if (this.ui.activePanel || this.dead) return;
+      if (this.photo && this.photo.active) return; // the shutter is [F], not the trigger
       if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
       else this.attack();
     });
@@ -801,6 +818,10 @@ class Game {
     document.getElementById('btn-settings').addEventListener('click', () => {
       this.ui.closePanel();
       this.ui.toggle('settings');
+    });
+    document.getElementById('btn-help').addEventListener('click', () => {
+      this.ui.closePanel();
+      this.ui.toggle('help');
     });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
@@ -814,7 +835,8 @@ class Game {
     }, { passive: false });
     // ESC exits pointer lock (browser reserves it); treat that as "open the system menu"
     document.addEventListener('pointerlockchange', () => {
-      if (document.pointerLockElement !== canvas && !this.ui.activePanel && !this.dead) this.openSystem();
+      if (document.pointerLockElement !== canvas && !this.ui.activePanel && !this.dead
+        && !(this.photo && this.photo.active)) this.openSystem();
     });
     document.getElementById('btn-resume').addEventListener('click', () => this.ui.closePanel());
     document.getElementById('btn-save').addEventListener('click', (e) => {
@@ -832,7 +854,14 @@ class Game {
 
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
+      // typing in a field is typing, not playing (map search, workbench filter)
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {
+        if (k === 'escape') e.target.blur();
+        return;
+      }
       if (this.dead) { if (k === 'enter') this.respawn(); return; }
+      if (this.photo && this.photo.active) return; // photo mode owns the keys
+      if (k === 'p' && !this.ui.activePanel) { (this.photo || (this.photo = new PhotoMode(this))).toggle(); return; }
       if (k === 'escape') { if (!this.ui.closePanel()) this.openSystem(); return; }
       if (k === 'i' || k === 'tab') { e.preventDefault(); this.ui.toggle('body'); return; }
       if (k === 'm') { this.ui.toggle('map'); return; }
@@ -2388,6 +2417,7 @@ class Game {
         const word = o === 'held' ? `the wall at ${r.data.stillName} held — the march spent itself and broke`
           : o === 'sacked' ? `the march went over the wall at ${r.data.stillName}. the still stands smaller now; the well keeps the names`
           : o === 'column' ? `someone met the column bound for ${r.data.stillName} on the open road and broke its heart-engine. the wall never fired`
+          : o === 'gate' ? `the column reached the very gate of ${r.data.stillName} — and broke there, in front of the whole wall. they are still telling it`
           : `the front near ${r.data.stillName} died before it marched — the waking was hunted out of the nests, heart by heart`;
         this.dlg.lines.push({
           text: npc.isWell
@@ -4735,7 +4765,8 @@ class Game {
     requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, this.clock.getDelta());
     const p = this.player;
-    const paused = !!this.ui.activePanel; // any open panel suspends the simulation
+    const inPhoto = !!(this.photo && this.photo.active);
+    const paused = !!this.ui.activePanel || inPhoto; // panels and the photograph suspend the simulation
 
     // day cycle & weather
     if (!paused) {
@@ -4851,6 +4882,14 @@ class Game {
           || (this.season && this.season.id === 'longcold'))) {
           for (const c of this.world.collidersNear(p.pos.x, p.pos.z)) {
             if (c.top > p.pos.y + 2 && inFootprint(c, p.pos.x, p.pos.z, 5)) { sh = true; break; }
+          }
+        }
+        // a lit camp is a roof of sorts: the fire's warding keeps the
+        // glass-wind off whoever shares it (crews were already immune)
+        if (!sh && this.camps.fireNear(p.pos, 8)) sh = true;
+        if (!sh) {
+          for (const cv of this.caravans.loadedList()) {
+            if (cv.fire && Math.hypot(cv.fire.position.x - p.pos.x, cv.fire.position.z - p.pos.z) < 8) { sh = true; break; }
           }
         }
         this._sheltered = sh;
@@ -4973,7 +5012,8 @@ class Game {
       });
     }
 
-    // camera orbit + terrain avoidance
+    // camera orbit + terrain avoidance — unless the photographer has it
+    if (inPhoto) this.photo.update(dt);
     const camDist = this.camDist, camH = 2.2;
     const cx = p.pos.x - Math.sin(this.camYaw) * Math.cos(this.camPitch) * camDist;
     const cz = p.pos.z - Math.cos(this.camYaw) * Math.cos(this.camPitch) * camDist;
@@ -5007,8 +5047,10 @@ class Game {
       ccy = hy + (ccy - hy) * t;
       ccz = p.pos.z + (cz - p.pos.z) * t;
     }
-    this.camera.position.set(ccx + (Math.random() - 0.5) * sh, ccy + (Math.random() - 0.5) * sh, ccz + (Math.random() - 0.5) * sh);
-    this.camera.lookAt(p.pos.x, p.pos.y + 1.8, p.pos.z);
+    if (!inPhoto) {
+      this.camera.position.set(ccx + (Math.random() - 0.5) * sh, ccy + (Math.random() - 0.5) * sh, ccz + (Math.random() - 0.5) * sh);
+      this.camera.lookAt(p.pos.x, p.pos.y + 1.8, p.pos.z);
+    }
 
     // dust follows the player — dimmed at night so it doesn't read as grounded stars
     this.dust.position.set(p.pos.x, p.pos.y, p.pos.z);

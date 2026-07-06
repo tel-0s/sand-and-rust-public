@@ -241,6 +241,18 @@ class Caravaneer {
   dispose(scene) { scene.remove(this.mesh); }
 }
 
+// THE STRAYS: the desert's loners — solo walkers on long diagonals between
+// stills and the megastructures, derived like everything else. A pilgrim
+// bound for the fallen hand, a tinker on the far circuit, a courier who
+// trusts no road. They rest AT the ruin when the schedule says rest.
+const STRAY_KINDS = [
+  { role: 'pilgrim', temperament: 'monastic', trader: false },
+  { role: 'tinker of the far circuit', temperament: 'mercantile', trader: true },
+  { role: 'courier', temperament: 'scavver', trader: false },
+  { role: 'salt-witch', temperament: 'ferrocult', trader: false },
+  { role: 'bone-picker', temperament: 'scavver', trader: true },
+];
+
 // ---------- the manager: routes, schedules, and what befalls them ----------
 export class CaravanManager {
   constructor(scene, world, stills, hooks = {}) {
@@ -281,6 +293,42 @@ export class CaravanManager {
     return [...out.values()];
   }
 
+  // the strays' ways: per still, a seeded chance one loner walks a LONG
+  // diagonal — to a megastructure (the pilgrim's way, ~60%) or a far still
+  // (never the nearest: the strays go where the roads don't)
+  straysNear(x, z) {
+    const out = [];
+    for (const s of this.stills.stillsNear(x, z, 9000)) {
+      const salt = hashString('stray:' + s.key) | 0;
+      const rng = randFromHash(this.world.seed, salt, 811);
+      if (!rng.chance(0.4)) continue;
+      let dest = null, toMega = rng.chance(0.6);
+      if (toMega) {
+        // a pilgrimage is a JOURNEY: nothing within an afternoon's stroll
+        const megas = this.world.megasNear(s.x, s.z, 7500)
+          .filter(m => Math.hypot(m.x - s.x, m.z - s.z) > 2800)
+          .sort((p, q) => Math.hypot(p.x - s.x, p.z - s.z) - Math.hypot(q.x - s.x, q.z - s.z));
+        if (megas.length) dest = megas[rng.int(0, Math.min(2, megas.length - 1))];
+      }
+      if (!dest) {
+        toMega = false;
+        const far = this.stills.stillsNear(s.x, s.z, 8500)
+          .filter(n => n.key !== s.key)
+          .sort((p, q) => Math.hypot(p.x - s.x, p.z - s.z) - Math.hypot(q.x - s.x, q.z - s.z));
+        if (far.length < 3) continue;
+        dest = far[Math.min(far.length - 1, rng.int(2, 4))];
+      }
+      const legDays = Math.max(0.3, Math.hypot(dest.x - s.x, dest.z - s.z) / (5.0 * 480));
+      out.push({
+        key: 'stray:' + s.key, a: s,
+        b: { key: dest.key || 'mega', name: dest.name, x: dest.x, z: dest.z },
+        salt, phase: rng.range(0, 1), legDays,
+        stray: STRAY_KINDS[rng.int(0, STRAY_KINDS.length - 1)], megaDest: toMega,
+      });
+    }
+    return out;
+  }
+
   // routes run between the EDGES of stills, never through their walls:
   // clip an endpoint 50m out from the settlement's heart, toward the other
   // (FIELD_R is 42; the ground-blades stand at 36 — nobody paths into them)
@@ -314,18 +362,27 @@ export class CaravanManager {
     const rng = randFromHash(this.world.seed, route.salt, 977);
     const pseudoStill = {
       key: 'cvn:' + route.key,
-      name: `the ${route.a.name.replace(/^the\s+/i, '')}–${route.b.name.replace(/^the\s+/i, '')} road`,
-      x: sched.x, z: sched.z, temperament: 'mercantile',
+      name: route.stray ? 'the open sand'
+        : `the ${route.a.name.replace(/^the\s+/i, '')}–${route.b.name.replace(/^the\s+/i, '')} road`,
+      x: sched.x, z: sched.z, temperament: route.stray ? route.stray.temperament : 'mercantile',
     };
     const caravan = {
-      key: route.key, route, pseudoStill, rng, salt: route.salt,
+      key: route.key, route, pseudoStill, rng, salt: route.salt, stray: route.stray || null,
       stageOf: (k) => this.hooks.stageOf ? this.hooks.stageOf(k) : 0,
       members: [], beasts: [], fire: null,
       ambushed: false, defendedTold: false,
     };
-    const nMembers = rng.int(3, 4), nBeasts = rng.int(1, 2); // safety in numbers
+    const nMembers = route.stray ? 1 : rng.int(3, 4), nBeasts = route.stray ? 0 : rng.int(1, 2); // safety in numbers — or none
     for (let i = 0; i < nMembers; i++) caravan.members.push(new Caravaneer(this.scene, this.world, caravan, i, rng));
     for (let i = 0; i < nBeasts; i++) caravan.beasts.push(new Beastbot(this.scene, this.world, rng, nMembers * 3.4 + i * 4.2));
+    if (route.stray) {
+      const m = caravan.members[0];
+      m.role = route.stray.role;
+      m.temperament = route.stray.temperament;
+      m.trader = route.stray.trader;
+      m.origin = route.a.name; // the strays remember exactly where they left
+      m.stray = true;
+    }
     // place everyone at their slots immediately (no walk-in from origin)
     const dir = Math.atan2(sched.to.x - sched.from.x, sched.to.z - sched.from.z);
     const put = (ent, slot, lat) => {
@@ -396,11 +453,13 @@ export class CaravanManager {
     this.scanT -= dt;
     if (this.scanT <= 0) {
       this.scanT = 0.8;
-      for (const route of this.routesNear(player.pos.x, player.pos.z)) {
+      for (const route of [...this.routesNear(player.pos.x, player.pos.z), ...this.straysNear(player.pos.x, player.pos.z)]) {
         if (this.loaded.has(route.key)) continue;
-        if (this.hooks.isCut && this.hooks.isCut(route.key)) continue;
+        if (!route.stray && this.hooks.isCut && this.hooks.isCut(route.key)) continue;
         const sched = this.schedule(route, worldT);
-        if (sched.resting) continue; // laid up inside a still: not on the road
+        // laid up inside a still: not on the road. But a stray resting at a
+        // MEGASTRUCTURE camps in the open — findable, at the ruin's foot
+        if (sched.resting && !(route.stray && route.megaDest && sched.resting === route.b)) continue;
         if (Math.hypot(sched.x - player.pos.x, sched.z - player.pos.z) < LOAD_R) {
           const c = this.load(route, sched, worldT);
           if (!this.belled.has(route.key)) {
@@ -430,7 +489,9 @@ export class CaravanManager {
         const e1 = CaravanManager.clipToWall(st.to, st.from);
         const total = Math.hypot(e1.x - e0.x, e1.z - e0.z) || 1;
         const nearPlayer = Math.hypot(c.pseudoStill.x - player.pos.x, c.pseudoStill.z - player.pos.z) < 260;
-        const moving = nearPlayer && !c.ambushed && st.progress < 1;
+        // contract or not, nobody walks the dark: escorts camp at night too
+        // (the shared fire code below lights and wards their halt)
+        const moving = nearPlayer && !c.ambushed && st.progress < 1 && !isNight;
         if (moving) st.progress = Math.min(1, st.progress + (5.6 * dt) / total); // under the crew's stride — nobody straggles
         sched = {
           x: e0.x + (e1.x - e0.x) * st.progress,

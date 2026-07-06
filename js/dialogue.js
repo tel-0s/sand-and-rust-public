@@ -645,7 +645,7 @@ export const BANTER = {
   // THE SECOND CHAIR: two voices, one road — they talk to each other
   duo: [
     ['{other}. settle something. dunes: worse going up, or worse going down.', 'worse going ON, is the answer nobody likes. next question.'],
-    ['i had a home once, you know. walls. a post i held.', 'we all had a once, {other}. that is what the walking is FOR.'],
+    ['i had a home once, you know. walls. a post i held.', 'we all had a home once, {other}. that is what the walking is FOR.'],
     ['if the walker falls over out here, i am not carrying the legs. i am saying it now.', 'you take the legs. i carried the legs at the crossing and one of them kicked.'],
     ['do you hear the wells humming, some nights?', 'everyone hears it. the trick is not answering. drink your salt.'],
     ['the stories have both our names in them now. stitched to the walker’s.', 'then walk taller. stories check their sources.'],
@@ -718,6 +718,10 @@ const WAR_AFTER_TALK = {
   ],
 };
 WAR_AFTER_TALK.stood = WAR_AFTER_TALK.held; // old ledgers use the old word
+WAR_AFTER_TALK.gate = [
+  'you hear what happened at {wstill}? the column reached the GATE. and then it stopped being a column. i would have paid water to see it',
+  'they say the heart-engine died close enough to {wstill} that the wall-watch could read its dials. that is not a rescue, that is THEATER',
+];
 
 const THRIVING_TALK = [
   'new plate this season. the roads paid for it — feel the weight of me.',

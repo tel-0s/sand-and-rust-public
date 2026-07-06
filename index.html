@@ -63,8 +63,14 @@
 
 <div id="panel-map" class="panel hidden">
   <div class="panel-title">// CARTOGRAPHIC RECONSTRUCTION</div>
-  <canvas id="map-canvas" width="640" height="640"></canvas>
-  <div id="map-legend"></div>
+  <div id="map-layout">
+    <div id="map-side"></div>
+    <div id="map-center"><canvas id="map-canvas" width="640" height="640"></canvas></div>
+    <div id="map-search">
+      <input id="map-search-in" type="text" placeholder="⌕ search the mapped desert…" autocomplete="off">
+      <div id="map-results"></div>
+    </div>
+  </div>
   <div class="panel-foot">[M / ESC] CLOSE</div>
 </div>
 
@@ -118,10 +124,44 @@
     <button id="btn-resume" class="title-btn">RESUME</button>
     <button id="btn-save" class="title-btn">COMMIT SAVE</button>
     <button id="btn-settings" class="title-btn">CALIBRATION</button>
+    <button id="btn-help" class="title-btn">OPERATOR'S MANUAL</button>
     <button id="btn-quit" class="title-btn">SAVE &amp; QUIT TO TITLE</button>
   </div>
   <div id="system-info"></div>
   <div class="panel-foot">[ESC] RESUME — simulation suspended</div>
+</div>
+
+<div id="panel-help" class="panel hidden">
+  <div class="panel-title">// OPERATOR'S MANUAL — firmware reference</div>
+  <div id="help-body">
+    <div class="help-col">
+      <h4>THE FRAME</h4>
+      <div class="hk"><b>W A S D</b> walk</div>
+      <div class="hk"><b>SHIFT</b> run (drains power)</div>
+      <div class="hk"><b>SPACE</b> jump</div>
+      <div class="hk"><b>MOUSE</b> look · <b>CLICK</b> engage (hold to keep firing)</div>
+      <div class="hk"><b>WHEEL</b> camera boom</div>
+      <div class="hk"><b>1–4</b> the abilities your parts grant</div>
+      <div class="hk"><b>E</b> talk / read / loot / enter — whatever is near</div>
+      <div class="hk"><b>C</b> the calling (when the desert has given you one)</div>
+      <h4>THE PANELS</h4>
+      <div class="hk"><b>I / TAB</b> the body — parts, cargo, crafting</div>
+      <div class="hk"><b>M</b> the chart — drag pans, scroll zooms, click sets a waypoint, type to search</div>
+      <div class="hk"><b>J</b> the memory log — work, lore, legends</div>
+      <div class="hk"><b>P</b> photo mode — the world holds still ([F] photographs)</div>
+      <div class="hk"><b>ESC</b> system interrupt (this menu)</div>
+    </div>
+    <div class="help-col">
+      <h4>THE DESERT, BRIEFLY</h4>
+      <div class="hp">You are a machine that woke up alone. The STILLS are walled settlements around water-wells; their people trade, talk, remember, and post work. Disposition is earned — and spent.</div>
+      <div class="hp">The RUST is the red growth in your meter and the world's flesh. Nests spread it; storms and deep places feed it. Consumables purge it, or you can listen to what it is trying to say.</div>
+      <div class="hp">The WELLS at each still answer questions, post contracts, and hold the settlement's memory. Some things are only offered when the moment is right.</div>
+      <div class="hp">The COMPANY: souls who trust you may walk with you — two chairs at most. Arm them, hear their wants, and they will refuse to fall when it matters.</div>
+      <div class="hp">The LATTICE: attuned anchors let you transmit between distant places. The first ride costs nothing but nerve.</div>
+      <div class="hp">Everything else — the wars, the colossi, the old ones, the stories — the desert will tell you itself. Ask about the glowing words.</div>
+    </div>
+  </div>
+  <div class="panel-foot">[ESC] BACK</div>
 </div>
 
 <div id="death-screen" class="hidden">

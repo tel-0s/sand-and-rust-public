@@ -301,21 +301,33 @@ export class WarSystem {
       this._col = null;
     }
     const day = Math.floor(g.worldT);
-    this.close(f, day, 'column');
+    // WHERE the heart fell decides the telling: slag on the open road is one
+    // legend; slag at the gate, with every soul on the wall watching, is another
+    const spot = this.columnAt() || { x: f.heartX, z: f.heartZ };
+    const atGate = Math.hypot(spot.x - f.x, spot.z - f.z) < 420;
+    this.close(f, day, atGate ? 'gate' : 'column');
     g.audio.play('chime');
-    g.ui.toast(`THE HEART-ENGINE FALLS — THE COLUMN BREAKS ON THE OPEN ROAD`, 'good');
+    g.ui.toast(atGate
+      ? `THE HEART-ENGINE FALLS AT THE GATE — THE COLUMN BREAKS IN SIGHT OF THE WALL`
+      : `THE HEART-ENGINE FALLS — THE COLUMN BREAKS ON THE OPEN ROAD`, 'good');
     const still = g.resolveStillByKey(f.stillKey);
     if (still) {
-      g.changeRep(still, 10);
-      g.appendHistory(f.stillKey, `a column marched on this place on day ${1 + day} behind a heart-engine, and a walker met it on the open road and broke it. the wall never fired a shot. that is the best kind of siege.`);
+      g.changeRep(still, atGate ? 12 : 10);
+      g.appendHistory(f.stillKey, atGate
+        ? `a column came all the way to the gate of this place on day ${1 + day} behind a heart-engine, and it broke THERE, in the yard's own shadow, with every soul on the wall watching. nobody here will stop telling it.`
+        : `a column marched on this place on day ${1 + day} behind a heart-engine, and a walker met it on the open road and broke it. the wall never fired a shot. that is the best kind of siege.`);
       g.rootStory('story:column:' + f.key, 'war',
-        `the walker stood in the road between the column and ${f.stillName} and broke the heart-engine at its head, and the machines forgot the word 'together.'`,
+        atGate
+          ? `the column came to the very walls of ${f.stillName}, and the walker turned at the gate and broke the heart-engine in front of everyone — close enough that the watch could read its dials.`
+          : `the walker stood in the road between the column and ${f.stillName} and broke the heart-engine at its head, and the machines forgot the word 'together.'`,
         { stills: [still] });
     }
     g.recordEvent('front', f.stillName);
     g.journal.push({
       type: 'lore', cat: 'event', title: `THE COLUMN BROKEN — ${f.stillName.toUpperCase()}`,
-      body: `the heart-engine is slag on the ${f.stillName} road, day ${1 + day}. the escorts scattered into ordinary weather. the front is over; the wall never knew how close it came.`,
+      body: atGate
+        ? `the heart-engine is slag inside sight of the ${f.stillName} wall, day ${1 + day}. it came that close. everyone saw what stopped it.`
+        : `the heart-engine is slag on the ${f.stillName} road, day ${1 + day}. the escorts scattered into ordinary weather. the front is over; the wall never knew how close it came.`,
     });
   }
 
@@ -528,7 +540,7 @@ export class WarSystem {
   close(f, day, outcome) {
     const g = this.game;
     // THE PROVING: a war survived is an impactful moment — the door opens
-    if (f.known && ['held', 'stood', 'broken', 'column'].includes(outcome) && g.openProving) {
+    if (f.known && ['held', 'stood', 'broken', 'column', 'gate'].includes(outcome) && g.openProving) {
       g.openProving('the war against ' + f.stillName + ', ended');
     }
     // a war that ended before its rumor arrived becomes a different rumor:

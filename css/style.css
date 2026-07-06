@@ -169,10 +169,22 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
 #part-detail button { font-family: inherit; font-size: 10px; letter-spacing: 1px; padding: 5px 12px; background: var(--panel-bg); border: 1px solid var(--amber); color: var(--amber-bright); cursor: pointer; }
 #part-detail button:hover { background: rgba(60,40,16,0.9); }
 
-#map-canvas { border: 1px solid var(--line); background: #0d0a06; image-rendering: pixelated; max-height: 64vh; }
-#map-legend { margin-top: 10px; font-size: 10px; color: var(--amber-dim); display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
-#map-legend .lg { display: flex; align-items: center; gap: 5px; }
-#map-legend .sw { width: 10px; height: 10px; display: inline-block; border: 1px solid rgba(255,255,255,0.2); }
+#panel-map .panel-title { max-width: none; }
+#map-layout { display: flex; gap: 14px; width: 100%; flex: 1; min-height: 0; }
+#map-side { width: 185px; flex: 0 0 185px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: 10px; color: var(--amber-dim); }
+.map-sec { border: 1px solid var(--line); background: var(--panel-bg); padding: 8px 10px; }
+.map-sec h4 { margin: 0 0 6px; font-size: 9px; letter-spacing: 2px; color: var(--amber); font-weight: normal; }
+.map-sec .lg { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.map-sec .sw { width: 10px; height: 10px; display: inline-block; border: 1px solid rgba(255,255,255,0.2); flex: 0 0 10px; }
+#map-center { flex: 1; min-width: 0; display: flex; }
+#map-canvas { border: 1px solid var(--line); background: #0d0a06; image-rendering: pixelated; width: 100%; height: 100%; }
+#map-search { width: 230px; flex: 0 0 230px; display: flex; flex-direction: column; min-height: 0; }
+#map-search-in { background: #14100a; border: 1px solid var(--line); color: var(--amber-bright); font: inherit; font-size: 11px; padding: 7px 9px; outline: none; }
+#map-search-in:focus { border-color: var(--amber); }
+#map-results { flex: 1; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.map-hit { border: 1px solid var(--line); background: var(--panel-bg); padding: 5px 8px; font-size: 10.5px; cursor: pointer; display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+.map-hit:hover { border-color: var(--amber); background: rgba(40,28,12,0.92); }
+.map-hit .mh-dist { color: var(--amber-dim); font-size: 9px; flex: 0 0 auto; }
 
 #journal-list { width: 100%; max-width: 760px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .journal-entry { border: 1px solid var(--line); border-left: 3px solid var(--amber); background: var(--panel-bg); padding: 10px 14px; font-size: 12px; line-height: 1.7; }
@@ -317,3 +329,39 @@ body { font-family: "SF Mono", Menlo, Consolas, monospace; color: var(--amber); 
   align-items: center; justify-content: center; gap: 20px; }
 #credits-body { font-size: 12px; line-height: 2.1; text-align: center; color: var(--amber); max-width: 560px; }
 #credits-body b { color: var(--amber-bright); }
+
+
+/* ---------- PHOTO MODE ---------- */
+#photo-panel {
+  position: absolute; right: 12px; top: 12px; z-index: 40; width: 250px;
+  background: rgba(12,9,6,0.92); border: 1px solid var(--amber, #d9a05a);
+  padding: 10px 12px; font-size: 11px; color: #d8c8a8;
+  box-sizing: border-box;
+}
+#photo-panel * { box-sizing: border-box; }
+#photo-panel input[type=range] { min-width: 0; width: 100%; }
+#photo-panel .ph-title { color: var(--amber, #d9a05a); letter-spacing: 2px; margin-bottom: 4px; }
+#photo-panel .ph-help { opacity: 0.7; font-size: 9.5px; line-height: 1.5; margin-bottom: 8px; }
+#photo-panel .ph-row { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
+#photo-panel .ph-row span { flex: 0 0 88px; opacity: 0.85; }
+#photo-panel input[type=range] { flex: 1; accent-color: #d9a05a; }
+#photo-panel select, #photo-panel button {
+  background: #1a130c; color: #d8c8a8; border: 1px solid #6b543a; font: inherit; padding: 2px 6px; cursor: pointer;
+}
+#photo-panel .ph-shoot { display: block; width: 100%; margin-top: 10px; padding: 7px; color: var(--amber, #d9a05a); letter-spacing: 1px; }
+#photo-panel .ph-shoot:hover { background: #2a1f12; }
+#ph-lights .ph-row span { flex: 0 0 52px; }
+
+
+/* ---------- OPERATOR'S MANUAL ---------- */
+#help-body { display: flex; gap: 40px; width: 100%; max-width: 900px; flex: 1; min-height: 0; overflow-y: auto; }
+.help-col { flex: 1; min-width: 0; }
+.help-col h4 { font-size: 11px; letter-spacing: 3px; color: var(--amber); margin: 18px 0 8px; font-weight: normal; }
+.help-col h4:first-child { margin-top: 0; }
+.hk { font-size: 12px; color: var(--amber-dim); margin: 5px 0; line-height: 1.5; }
+.hk b { color: var(--amber-bright); display: inline-block; min-width: 76px; }
+.hp { font-size: 11.5px; color: var(--amber-dim); margin: 0 0 10px; line-height: 1.65; }
+
+
+/* photo mode: the interface steps aside; the lens layers stay */
+#hud.photo-lens > :not(#vignette):not(#scanlines):not(#photo-tint) { visibility: hidden; }

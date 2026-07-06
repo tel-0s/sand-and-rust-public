@@ -1019,6 +1019,170 @@ THE BUILDS.
   rites), war stories and campaign epithets on the Legend substrate,
   gossip saturation, the balance pass, Workbench completion.
 
+## build 2026.7.111 — THE GATE — ✅ SHIPPED
+
+A field report from the producer (who, with Lorn and Brann, shattered
+a front at the Circle of the Long Water): the column broke INSIDE the
+still, but the telling said 'broken on the open road — the wall never
+knew how close it came.' The classifier didn't know where the heart
+fell.
+
+- ✅ **Where the heart falls decides the telling**: the heart-engine
+  dying within 420 m of the still is a new outcome — THE GATE — with
+  its own toast ('THE COLUMN BREAKS IN SIGHT OF THE WALL'), history
+  ('it broke THERE, in the yard's own shadow, with every soul on the
+  wall watching'), legend ('close enough that the watch could read
+  its dials'), journal, and +12 rep (the road-break keeps its 'best
+  kind of siege' telling and +10).
+- ✅ **The tongues know the gate**: aftermath smalltalk away ('that is
+  not a rescue, that is THEATER') and first-person at the still that
+  watched ('i was ON the wall… i have not needed a story since — i
+  was IN one'), witness testimony (war_gate), the traveled warend
+  rumor, and the proving door all speak the new outcome.
+- Verified: round126 (9 checks — gate vs road classification by
+  distance/history/journal honest both ways/aftermath pools both
+  voices/witness line), boot clean, regression 61 fps.
+
+## build 2026.7.110 — four from the field — ✅ SHIPPED
+
+The playtest batch, all four notes closed.
+
+- ✅ **Photo mode, the trigger and the lens**: clicks in photo mode no
+  longer fire or grab the pointer (the shutter is [F], not the
+  trigger); and the vignette/scanline/tint preview is BACK — those
+  layers live inside #hud, which photo mode hid whole. It now hides
+  the interface, not the lens (the capture always compositing them is
+  why the PNG was right while the screen was wrong).
+- ✅ **Escorts camp at night**: the contract branch walked day and
+  night by design — no longer. Contract or not, nobody walks the
+  dark: they halt, the shared camp code lights and wards their fire,
+  they resume at dawn.
+- ✅ **A fire is a roof**: a lit camp fire (caravan or wanderer) now
+  shelters the walker from the glass-wind within its warding — crews
+  were already immune, but sharing their camp through a shard storm
+  is now survival, not just atmosphere.
+- ✅ **The company labels tell the truth**: LISTENER joins the
+  mender roles — Lorn reads mender and heals in combat from next
+  load; Brann the Drifter stays honest muscle. (Armaments never
+  changed the label and heal modules aren't giftable — the role
+  decides, now correctly.)
+- ✅ **The banter reads whole**: 'we all had a home once.'
+- Verified: round125 (17 checks), boot clean, regression 61 fps.
+
+## build 2026.7.109 — the operator's manual — ✅ SHIPPED
+
+The help submenu (notes line 30's parenthetical, called due).
+
+- ✅ **OPERATOR'S MANUAL** under the system interrupt: every key and
+  mouse control, current through photo mode ([P]/[F]) and the chart
+  search — THE FRAME and THE PANELS in one column.
+- ✅ **THE DESERT, BRIEFLY** in the other: a six-paragraph primer in
+  the game's own voice — stills, the Rust, wells, the company, the
+  lattice, and the standing advice ('ask about the glowing words').
+- Verified: round124 (8 checks — button/opens/keys covered/primer
+  covered/two columns/ESC path/screenshot), boot clean, regression
+  61 fps.
+
+## build 2026.7.108 — THE STRAYS — ✅ SHIPPED
+
+Free-roaming solo wanderers (the deferred tail of notes line 33).
+The desert's loners, derived like everything else.
+
+- ✅ **The long diagonals**: ~40% of stills seed one solo walker —
+  60% bound for a MEGASTRUCTURE within reach (the pilgrim's way: a
+  soul walking to the fallen hand on purpose), 40% for a far still
+  the roads skip (never the nearest neighbor). Nothing under 2.8 km:
+  a pilgrimage is a journey. Census: 129 strays over a 7-point sweep,
+  84 to ruins, zero short walks.
+- ✅ **One soul, no beasts, no bells**: sighting toast 'A LONE WALKER —
+  {name}, {role}' (pilgrim, tinker of the far circuit, courier,
+  salt-witch, bone-picker), journal entry names where they left and
+  what they walk toward. Map label 'A WALKER' instead of the bell.
+- ✅ **Full citizenship for free**: built on the caravan schedule
+  machinery — honest footpace, night camps with warding fires,
+  self-defense with real loadouts, standard dialogue (talk, ask about
+  them, THE LIVES biography included), traders where the kind trades.
+- ✅ **They rest AT the ruin**: a mega-bound stray's rest phase loads
+  in the open — find them camped at the foot of what they walked all
+  that way to see.
+- ✅ Zero save weight: routes, kinds, and schedules all pure functions
+  of the seed and the clock.
+- Verified: round123 (16 checks — existence/60-40 split/no short
+  ways/determinism/solo load/role + journal/conversant + speaks/armed/
+  rest-at-ruin schedule), boot clean, regression 61 fps.
+
+## build 2026.7.107 — the relief — ✅ SHIPPED
+
+The chart carries the ground's shape. (The old deferral said "once
+explored-cell records carry height" — they never needed to: heights
+are a pure function of the seed. DERIVED NOT STORED, cartography
+edition.)
+
+- ✅ **Hillshade at render time**: each explored cell samples the
+  world's own heightfield (center + east + south neighbors), lit from
+  the northwest — slopes toward the light brighten, slopes away fall
+  into shadow, with a whisper of elevation tint so high ground reads
+  high. Dune faces, mesa rims, and canyon cuts now show on the chart.
+- ✅ **Zero save weight, honest cost**: shades cache per session —
+  measured 129 ms cold for ~3,000 cells, 3 ms cached, values
+  deterministic and bounded.
+- Verified: round122 (11 checks — first-render budget/cache fill/
+  73 distinct shades/bounds/determinism after cache eviction/cached
+  re-render speed/screenshot), boot clean, regression 61 fps.
+
+## build 2026.7.106 — the chart, redrawn — ✅ SHIPPED
+
+The map view overhaul (notes line 111, whole).
+
+- ✅ **Three sections, one side**: TERRAIN (biome swatches), MARKS
+  (every icon the chart draws, including the war front, caravan bell,
+  and silenced-nest states the old legend never listed), CONTROLS —
+  stacked on the left, out of the chart's way.
+- ✅ **The chart fills the screen**: the canvas backing store re-fits
+  to its on-screen box on open and on resize — crisp at any window
+  size (735×668 measured vs the old fixed 640×640), with the
+  projection made non-square-safe.
+- ✅ **THE SEARCH** (the centerpiece): a pane on the right indexing
+  everything mapped — discovered marks, the anchor, the waypoint,
+  open task steps, the active proving. Filters live, sorts by
+  match-position then distance (km shown), Enter takes the first hit,
+  and clicking a result CENTERS the chart there with a double ring.
+  Honest empty states both ways ('nothing mapped by that name — the
+  desert keeps it yet').
+- ✅ **Typing is typing, not playing**: game keys no longer fire from
+  focused input fields — typing 'm' in the search box no longer
+  closes the map (and the workbench filter box gets the same
+  protection for free).
+- Verified: round121 (18 checks — fit + non-square projection/three
+  sections/old legend gone/index + filter + distance/click centers +
+  rings/empty states/typing guard both ways/waypoint click still
+  accurate on the resized chart), boot clean, regression 61 fps.
+
+## build 2026.7.105 — PHOTO MODE (+ the company HUD) — ✅ SHIPPED
+
+The desert holds still and lets you frame it. Notes line 109, whole.
+
+- ✅ **The company HUD** (playtest catch): the follower tag under
+  hull/power/rust only ever showed the first chair — now every chair
+  stacks, name, calling, and health each.
+- ✅ **[P] — PHOTO MODE**: the world freezes, the HUD steps aside, and
+  the camera is yours: WASD + Q/E free-cam (shift ×4), right-drag
+  look, wheel zooms FOV 18–110°, Z/X rolls ±45°. Toggleable walker
+  and company visibility.
+- ✅ **The dials**: vignette slider, scanline toggle, TRUE pixelation
+  (render resolution, not a filter), monochrome, five tints — live
+  preview via the game's own overlay layers.
+- ✅ **The lights**: up to four droppable point lights (drop-at-camera,
+  intensity slider, five colors, per-light delete), swept clean on
+  exit — the Cyberpunk trick, desert-priced.
+- ✅ **[F] — the photograph**: renders fresh, then COMPOSITES the
+  vignette, scanlines, and tint onto the PNG (CSS overlays don't live
+  in the GL buffer — the capture redraws them 1:1), and saves as
+  sand-and-rust_{seed}_day{N}.png with a shutter blink.
+- Verified: round120 (25 checks — HUD both chairs/enter/freeze/
+  free-cam/every dial/lights drop + sweep/capture filename/full state
+  restore on exit/world resumes), boot clean, regression 61 fps.
+
 ## build 2026.7.104 — the second chair, seated properly — ✅ SHIPPED
 
 Two playtest catches from THE COMPANY, both second-member bugs.

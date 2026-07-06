@@ -680,6 +680,7 @@ export const WITNESS = {
   war_sacked: ['when {still} broke we took in eleven of theirs. some are still here. we do not call them refugees anymore; we call them neighbors'],
   war_broken: ['the waking near {still} died before it marched, and every yard in earshot slept badly anyway. quiet has a texture, after'],
   war_column: ['they broke the column bound for {still} on the OPEN ROAD. we heard it third-hand by dusk and first-hand by the next market'],
+  war_gate: ['the column reached the gate at {still} and DIED there, with the whole wall watching. those who saw it will not shut up, and nobody wants them to'],
 };
 
 // ---------- THE OLD ONES: the ~3% who were read in, like you ----------
@@ -738,6 +739,10 @@ export const WAR_AFTER_OURS = {
   ],
   column: [
     'the column that was coming HERE died on the road. somebody else’s hands, our whole luck. we drink to strangers now, on principle',
+  ],
+  gate: [
+    'i was ON the wall when the column reached us. i watched the heart-engine die close enough to count its lights. i have not needed a story since — i was IN one',
+    'it came to our gate. our GATE. and it broke there, in front of all of us. the yard has told it forty ways already and every one of them is true',
   ],
 };
 export const RUMOR_OWN = {

@@ -13,7 +13,7 @@ import { sampleForm, lineageAt, biomeAccent } from './frames.js';
 import { rollFolkLoadout, attachGreebles } from './enemies.js';
 
 const CAMP_CELL = 1300;
-const MENDER_ROLES = ['tinker-errant', 'road-mender', 'pilgrim', 'well-keeper', 'sweeper', 'abbot', 'tinker'];
+const MENDER_ROLES = ['tinker-errant', 'road-mender', 'pilgrim', 'well-keeper', 'sweeper', 'abbot', 'tinker', 'listener'];
 const WANDERER_ROLES = ['drifter', 'prospector', 'outrider', 'salvage-hand', 'tinker-errant', 'road-mender', 'pilgrim', 'courier'];
 export const archetypeOf = (role) => MENDER_ROLES.includes(role) ? 'mender' : 'fighter';
 
@@ -311,6 +311,11 @@ export class FollowerSystem {
   }
 
   list() { return [this.follower, this.second].filter(Boolean); }
+  // what they ACT as: the kit can turn a fighter into the company's mender
+  shownArchetype(f) {
+    const kitHeals = Object.values(f.equipped || {}).some(p => p && (p.ability === 'mend' || p.ability === 'swarm'));
+    return kitHeals ? 'mender' : f.archetype;
+  }
   hasRoom(secondUnlocked) { return !this.follower || (!!secondUnlocked && !this.second); }
 
   recruit(npc, homeLabel) {
