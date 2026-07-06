@@ -17,6 +17,8 @@ import { composeShard, composeInteriorDoc, stillHistory, whisper } from './lore.
 import { MEGA_TYPES_ALL } from './structures.js';
 import { buildResidentMesh } from './stills.js';
 import { archetypeOf } from './wanderers.js';
+import { effDisposition } from './dialogue.js';
+import { SLOTS } from './parts.js';
 
 const CAMP_CELL = 1300;
 
@@ -54,6 +56,11 @@ export function initDebug(getGame) {
   color: var(--amber, #d8a050); border: 1px solid rgba(232,163,61,0.4); padding: 3px 5px; max-width: 170px; }
 #dbg-root label { font-size: 10px; letter-spacing: 1px; }
 #dbg-foot { font-size: 9px; color: var(--amber-dim, #8a6c3e); letter-spacing: 1px; padding-top: 8px; }
+#dbg-watch { position: fixed; top: 60px; right: 12px; z-index: 250; pointer-events: none;
+  background: rgba(10,8,5,0.82); border: 1px solid rgba(111,232,208,0.4); color: #6fe8d0;
+  font-family: inherit; font-size: 10px; line-height: 1.6; letter-spacing: 0.5px;
+  padding: 6px 10px; white-space: pre; display: none; }
+#dbg-watch.on { display: block; }
 `;
   document.head.appendChild(css);
 
@@ -237,6 +244,59 @@ export function initDebug(getGame) {
     return i;
   };
 
+  // ---------- THE WATCH: live state on screen while you play ----------
+  const watchEl = document.createElement('div');
+  watchEl.id = 'dbg-watch';
+  document.body.appendChild(watchEl);
+  let watchFrames = 0, watchFps = 0, watchRaf = null, watchIv = null;
+  const watchTick = () => { watchFrames++; if (watchEl.classList.contains('on')) watchRaf = requestAnimationFrame(watchTick); };
+  const renderWatch = () => {
+    try {
+      const G = g(), p = G.player;
+      watchFps = watchFrames * 2; watchFrames = 0; // 500ms window
+      const hh = Math.floor(((G.dayT + 0.25) % 1) * 24), mm = Math.floor((((G.dayT + 0.25) % 1) * 1440) % 60);
+      const f = G.war.front;
+      const lines = [
+        `fps ${watchFps} · day ${1 + Math.floor(G.worldT)} · ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+        `${G.season ? G.season.name : '—'}${G.storm > 0.2 ? ' · STORM ' + G.storm.toFixed(1) : ''}${(G.shard || 0) > 0.1 ? ' · SHARD ' + G.shard.toFixed(1) : ''}`,
+        `hull ${Math.round(p.hull)}/${p.stats.maxHull} · pwr ${Math.round(p.energy)} · rust ${Math.round(p.corruption)}`,
+        `(${Math.round(p.pos.x)}, ${Math.round(p.pos.z)}) · ${G.world.biomeAt(p.pos.x, p.pos.z).id}`,
+      ];
+      if (f) lines.push(`front: ${f.stillName} — ${f.phase}${f.phase === 'marching' ? ' ' + Math.round(G.warSys.columnAt().t * 100) + '%' : ''}${f.known ? '' : ' (unheard)'}`);
+      for (const fw of G.followers.list()) lines.push(`${fw.name}: ${Math.round(fw.hp)}/${fw.maxHp}${fw.sworn ? ' ◆' : ''}`);
+      watchEl.textContent = lines.join('\n');
+    } catch (e) { /* between worlds; the watch waits */ }
+  };
+  const setWatch = (on) => {
+    watchEl.classList.toggle('on', on);
+    if (on && !watchIv) { watchIv = setInterval(renderWatch, 500); watchRaf = requestAnimationFrame(watchTick); }
+    if (!on && watchIv) { clearInterval(watchIv); watchIv = null; cancelAnimationFrame(watchRaf); }
+    try { localStorage.setItem('sar-bench-watch', on ? '1' : '0'); } catch (e) { /* private mode */ }
+  };
+  try { if (localStorage.getItem('sar-bench-watch') === '1') setWatch(true); } catch (e) { /* private mode */ }
+
+  // ---------- A/B SNAPSHOTS: whole world-states, capture and restore ----------
+  const saveKey = () => { const s = g().slot || 1; return s > 1 ? `sand-and-rust-save-${s}` : 'sand-and-rust-save'; };
+  const snapCapture = (slot) => {
+    const G = g();
+    G.saveT = 999; // hold the autosave while we borrow the slot
+    import('./save.js').then(({ saveGame }) => {
+      saveGame(G);
+      const raw = localStorage.getItem(saveKey());
+      localStorage.setItem('sar-bench-snap-' + slot, raw);
+      log(`→ snapshot ${slot} captured — day ${1 + Math.floor(G.worldT)}, (${Math.round(pos().x)}, ${Math.round(pos().z)})`);
+    });
+  };
+  const snapRestore = (slot) => {
+    const raw = localStorage.getItem('sar-bench-snap-' + slot);
+    if (!raw) return log(`✗ snapshot ${slot} is empty — capture first`);
+    g().saveT = 99999; // hold the autosave: it must not overwrite the snapshot in the reload window
+    window._benchRestoring = true; // and neither may the unload save
+    localStorage.setItem(saveKey(), raw);
+    log(`→ snapshot ${slot} written over the save — reloading into it… (click your slot on the title screen)`);
+    setTimeout(() => location.reload(), 400);
+  };
+
   const TABS = {
     // ================= WORLD: time, calendar, weather, map, state =================
     WORLD: (c) => {
@@ -310,6 +370,53 @@ export function initDebug(getGame) {
             `dead ${gg.deadNpcIds.length} · revived stills ${Object.keys(gg.revived).length} · nests broken ${Object.keys(gg.destroyedNests).length}\n` +
             `epic: ${gg.epic ? `${gg.epic.npcName} — ${gg.epic.state} @ ${gg.epic.megaName}` : 'none'}\n` +
             `corruption ${Math.round(gg.player.corruption)} · kills ${gg.kills} · discovered ${gg.world.discovered.length}`);
+        });
+      }));
+      c.appendChild(sec('THE WATCH — live state while you play', (el) => {
+        const r = row(el);
+        btn(r, 'pin the WATCH panel', () => { setWatch(true); log('→ the watch is pinned (top-right) — fps, clock, season, front, company. it survives the bench closing.'); }, 'act');
+        btn(r, 'unpin the watch', () => { setWatch(false); log('→ the watch is folded away'); });
+      }));
+      c.appendChild(sec('INSPECTORS', (el) => {
+        const r = row(el);
+        btn(r, 'inspect this still', () => {
+          const G = g(), s = nearestStill();
+          if (!s) return log('✗ no still near');
+          const st = G.stillStates[s.key] || { stage: 0 };
+          const wk = G.stakeWorks[s.key] || {};
+          const br = G.worksBroken[s.key] || {};
+          const pend = (G.pendingWorks[s.key] || []).map(p2 => `${p2.what} (${(p2.left * 24).toFixed(1)}h left)`).join(', ');
+          const rec = G.stills.loaded.get(s.key);
+          const roster = rec ? rec.npcs.map(n => `  ${n.name} — ${n.role} · hp ${Math.round(n.hp)}${n.activity ? ' · at ' + (n.activity.name || 'a post') : ''}`).join('\n') : '  (not loaded — walk closer for the roster)';
+          const hist = (G.histories[s.key] || []).slice(-2).map(h => '  » ' + h.slice(0, 100)).join('\n');
+          log(`${s.name} — ${s.temperament}, ${s.sizeClass || 'hamlet'}\nstage ${st.stage} · rep ${Math.round(G.stillRep[s.key] || 0)} · renown +${G.renownAt(s.key).toFixed(1)}${G.stake && G.stake.key === s.key ? ' · YOUR STAKE' : ''}\n` +
+            `works: homes ${wk.homes || 0} · market ${wk.market ? 1 : 0}${br.market ? ' (BROKEN)' : ''} · walls ${(wk.walls || 0) - (br.walls || 0)}/${wk.walls || 0} · guns ${(wk.turrets || 0) - (br.turrets || 0)}/${wk.turrets || 0}${pend ? '\ncrews: ' + pend : ''}\n` +
+            `attuned: ${G.attuned[s.key] ? 'yes' : 'no'} · settlers: ${(G.settlers[s.key] || []).length}\nroster:\n${roster}${hist ? '\nhistory:\n' + hist : ''}`);
+        });
+        btn(r, 'war ledger', () => {
+          const G = g();
+          const h = (G.war.history || []);
+          const front = G.war.front ? `ACTIVE: ${G.war.front.stillName} — ${G.war.front.phase}` : `at rest until day ${1 + (G.war.rest || 0)}`;
+          const s = nearestStill();
+          const led = s ? G.warSys.defenseLedger(s, G.war.front && G.war.front.stillKey === s.key ? G.war.front : null) : null;
+          log(`${front}\ncampaigns: ${h.length}\n` + h.map(x => `  day ${1 + x.day} — ${x.stillName || x.stillKey}: ${x.outcome.toUpperCase()}${x.raised ? ' · RAISED' : ''}`).join('\n')
+            + (led ? `\nnearest wall (${s.name}): ${led.text} = ${led.total}` : ''));
+        });
+      }));
+      c.appendChild(sec('A/B SNAPSHOTS — repeatable world-states', (el) => {
+        const r = row(el);
+        btn(r, 'capture A', () => snapCapture('A'), 'act');
+        btn(r, 'restore A', () => snapRestore('A'));
+        btn(r, 'capture B', () => snapCapture('B'), 'act');
+        btn(r, 'restore B', () => snapRestore('B'));
+        btn(r, 'snaps?', () => {
+          const read = (sl) => {
+            const raw = localStorage.getItem('sar-bench-snap-' + sl);
+            if (!raw) return `${sl}: empty`;
+            try { const d = JSON.parse(raw); return `${sl}: day ${1 + Math.floor(d.worldT)} · (${Math.round(d.player.x)}, ${Math.round(d.player.z)}) · ${(raw.length / 1024).toFixed(0)}kb`; }
+            catch (e) { return `${sl}: unreadable`; }
+          };
+          log(read('A') + '\n' + read('B') + '\nrestore writes the snapshot over the current save and reloads into it.');
         });
       }));
     },
@@ -658,6 +765,41 @@ export function initDebug(getGame) {
         });
         btn(r, 'herd HERE 120s', () => { g().herds._force = { x: pos().x + 40, z: pos().z, until: g().worldT + 120 / 480 }; log('→ a herd gathers 40m east, for a couple of minutes'); });
       }));
+      c.appendChild(sec('THE ROADS & THE JUDGMENT', (el) => {
+        const r = row(el);
+        btn(r, 'ambush nearest caravan', () => {
+          const G = g();
+          const c2 = [...G.caravans.loaded.values()][0];
+          if (!c2) return log('✗ no caravan loaded (walk near a route, or port to one from TRAVEL)');
+          G.ambushCaravan(c2, 4);
+          log(`→ four raiders fall on ${c2.pseudoStill.name} — the crew fights, the outcome ripples`);
+        }, 'act');
+        btn(r, 'cut nearest route (2 days)', () => {
+          const G = g();
+          const routes = G.caravans.routesNear(pos().x, pos().z)
+            .filter(rt => !((G.routesCut[rt.key] || 0) > G.worldT));
+          if (!routes.length) return log('✗ no open route in reach');
+          const rt = routes[0];
+          G.routesCut[rt.key] = G.worldT + 2;
+          log(`→ the ${rt.a.name}–${rt.b.name} road is cut for 2 days — scarcity, stories, and stages all feel it`);
+        });
+        btn(r, 'heal all cut routes', () => {
+          const G = g();
+          const n = Object.keys(G.routesCut).filter(k => G.routesCut[k] > G.worldT).length;
+          G.routesCut = {};
+          log(`→ ${n} road(s) reopened — the bells come back`);
+        });
+        btn(r, 'force a judgment (nearest still)', () => {
+          const G = g(), s = nearestStill();
+          if (!s) return log('✗ no still near');
+          const st = G.stillStates[s.key] || (G.stillStates[s.key] = { stage: 0, lastAssess: G.worldT });
+          st.lastAssess = G.worldT - 2.1;
+          st.graceUntil = 0;
+          const before = st.stage;
+          G.assessStill(G.stills.infoAt(...String(s.key).split(',').map(Number)));
+          log(`→ the fortune of ${s.name} was judged: stage ${before} → ${st.stage}${before === st.stage ? ' (held steady — vitality near the line)' : ''}`);
+        }, 'act');
+      }));
     },
 
     // ================= SOULS: everyone who breathes =================
@@ -750,6 +892,29 @@ export function initDebug(getGame) {
         btn(r, 'befriend (disp 50)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = 50; log(`→ ${b.n.name} counts you as kin`); });
         btn(r, 'sour (disp −40)', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); g().npcDisp[b.n.id] = -40; log(`→ ${b.n.name} wants you gone`); });
         btn(r, 'fell them', () => { const b = nearestResident(); if (!b) return log('✗ nobody near'); b.n.hp = 0; log(`→ ${b.n.name} falls (natural death pipeline — memorial, chains, gossip all fire)`); });
+        btn(r, 'disposition math', () => {
+          const G = g(), b = nearestResident();
+          if (!b) return log('✗ nobody within 120 m');
+          const npc = b.n;
+          const earned = G.npcDisp[npc.id] || 0;
+          const rusted = SLOTS.filter(s => G.equipped[s] && G.equipped[s].rusted).length;
+          const eff0 = effDisposition(npc, earned, G.player.corruption, rusted);
+          const rep = ((npc.still && G.stillRep[npc.still.key]) || 0) * 0.25;
+          const emb = G.embrace !== null && G.embrace >= 1 ? ({ ferrocult: 12, monastic: -12, mercantile: -4, scavver: -2 }[npc.temperament] || 0) * G.embrace : 0;
+          const marks = (G.deepMarked ? ({ ferrocult: 4, monastic: -4 }[npc.temperament] || 0) : 0)
+            + (G.fullBloom ? ({ ferrocult: 8, monastic: -6 }[npc.temperament] || 0) : 0)
+            + (G.polished ? ({ monastic: 10, ferrocult: -4 }[npc.temperament] || 0) : 0);
+          const wire = (G.txCount >= 4 ? ({ ferrocult: 6, monastic: -6 }[npc.temperament] || 0) : 0)
+            + (G.formerLife.choice === 'carried' ? ({ monastic: 4 }[npc.temperament] || 0) : 0)
+            + (G.formerLife.choice === 'erased' ? ({ monastic: 6, ferrocult: -6 }[npc.temperament] || 0) : 0);
+          const rn = G.renownAt(npc.still ? npc.still.key : null);
+          const { effD, tier } = G.calcDisp(npc);
+          log(`${npc.name} (${npc.temperament}) — THE ARITHMETIC OF REGARD\n` +
+            `base+earned+letter ${eff0.toFixed(1)} (base ${npc.baseDisp}, earned ${earned}, corruption ${Math.round(G.player.corruption)}, rusted parts ${rusted})\n` +
+            `still rep ×0.25: ${rep >= 0 ? '+' : ''}${rep.toFixed(1)} · embrace: ${emb >= 0 ? '+' : ''}${emb} · marks/bloom/polish: ${marks >= 0 ? '+' : ''}${marks}\n` +
+            `the wire & the choice: ${wire >= 0 ? '+' : ''}${wire} · renown: +${rn.toFixed(1)}\n` +
+            `= ${effD.toFixed(1)} → ${tier.label}`);
+        });
         const r2 = row(el);
         btn(r2, 'STAGE EPIC: befriend + fell', () => {
           const b = nearestResident();

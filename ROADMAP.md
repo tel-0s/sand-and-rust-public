@@ -704,6 +704,54 @@ THE BUILDS.
 - Workbench SEASONS tab rides along: set season, force a shard storm,
   force a star-fall, locate the nearest herd.
 
+**ARC XIII — THE TONGUES: THE DESIGN** (committed 2026-07-06)
+Season three opens on the mouths. The producer's diagnosis: the
+underlying systems are theoretically powerful but the speech is
+SELECTED, not COMPOSED — fixed pools, whole lines, and a long
+playtest hears the bottom of every barrel. The style is right; the
+breadth and composition are not. Design tenets:
+(1) COMPOSITION OVER SELECTION — utterances assemble from fragment
+grammars (opener × subject × stance × tail), the same expand()
+machinery that builds names, generalized to speech. A hundred
+fragments compose to tens of thousands of lines that still sound
+like one desert.
+(2) GROUNDED VARIATION — fragments bind to what is TRUE: this biome,
+this season, this still's stage and works, this war, this market,
+this speaker's neighbors and your standing with them. Composition
+may never say a false thing; breadth comes from the world's actual
+state space, which is enormous now.
+(3) VOICE SURVIVES COMPOSITION — temperament, role, quirk, and
+lineage color word choice inside the grammar, not as a coat of
+paint after. The monk and the scavver can compose the same thought
+and never share a sentence.
+(4) THE MOUTH REMEMBERS — per-soul memory of what they told YOU:
+said-sets that retire spent lines, callbacks to earlier meetings,
+greetings that evolve from stranger to regular to friend.
+(5) DATA STAYS DATA — fragments live in data/ modules; growing the
+tongue is content work, never code work.
+
+THE BUILDS:
+- b1 THE GRAMMAR — the speech-composition engine: expand()
+  generalized to utterances with per-temperament fragment pools;
+  smalltalk migrated first (the widest, most-heard channel), seeded
+  per (soul, day) so a soul holds their line within a day but the
+  yard never speaks in unison. Workbench GEN: compose-10 previews.
+- b2 THE SUBJECTS — grounding at full breadth: fragment families for
+  weather/season/works/war/market/roads/neighbors/your epithet and
+  band/the speaker's own role and post — everything true becomes
+  sayable, composably.
+- b3 THE MEMORY — the mouth remembers: said-sets per soul (saved,
+  bounded), spent lines retire, 'as i told you before—' callbacks,
+  first-meeting vs regular vs friend greeting arcs.
+- b4 THE VOICES — idiolects: per-soul favorite words and sentence
+  rhythms seeded from DNA, lineage dialects (the body dialects of
+  b33 get MOUTHS), roles talking shop, creed-specific grammar
+  bendings.
+- b5 THE WEAVE (crown) — the whole string-space through one loom:
+  rumors, gossip, tales, histories, and well-speech re-grounded on
+  the grammar; two-beat exchanges (souls ask YOU things back); the
+  balance pass so composition seasons and never floods.
+
 **ARC XII — THE WORKBENCH: THE DESIGN** (committed 2026-07-05)
 The dev-facing arc: the bench that built eleven arcs gets rebuilt by
 what it learned. Twelve tabs grew one per arc (WORLD, TRAVEL, EMBRACE,
@@ -886,6 +934,68 @@ THE BUILDS.
   stills retaken and rekindled (the loop closes through the hearth
   rites), war stories and campaign epithets on the Legend substrate,
   gossip saturation, the balance pass, Workbench completion.
+
+## build 2026.7.90 — the impostor and the ghosts — ✅ SHIPPED
+
+Two field reports, one of them a genuinely good mystery.
+
+- ✅ **The impostor Lorn** (high priority, and the player's instinct was
+  right — it was NOT the same NPC): recruiting a settled soul left
+  their settler record with the town, and on reload the settler
+  override stamped their name, temperament, and body onto whichever
+  OTHER soul held the last funded-home slot — a stranger wearing
+  Lorn's everything, with different relations. `settlersOf` now skips
+  settlers currently walking with you (or on the road after a
+  transmission): the town keeps their HOME but not their body; part
+  ways and the override stamps them back into it. Verified across the
+  whole cycle. Also fixed nearby: GONE WANTING departures now return
+  to the home roster instead of vanishing (recruitedIds leak).
+- ✅ **Ghost loot**: the looted ledger gated interaction but interior
+  rebuilds never consulted it for visibility — taken piles, caches,
+  and docs re-drew as untouchable ghosts on every revisit. All three
+  now check the ledger at build.
+- Verified: round105 (11 checks — the full settle/recruit/reload/
+  partways cycle + loot persistence with fresh-stays-visible), boot
+  clean, regression 61 fps.
+
+## build 2026.7.89 — "The Workbench" (ARC XII, build 3) — ✅ SHIPPED · ARC COMPLETE
+
+THE INSTRUMENTS — watch, inspect, trigger, snapshot.
+
+- ✅ **THE WATCH** (pin from WORLD): a live panel, top-right, updating
+  every half-second while you PLAY — fps, day + clock, season, storm/
+  shard, hull/power/rust, position + biome, the front and its phase
+  (column % while marching, '(unheard)' honesty), and every companion's
+  hp with their sworn ◆. Survives the bench closing; remembered across
+  sessions.
+- ✅ **INSPECTORS**: 'inspect this still' (stage, rep, renown, works
+  standing/broken, crews with hours left, attunement, settlers, the
+  loaded roster with posts, history tail); 'war ledger' (campaigns +
+  the nearest wall's defense arithmetic — the numbers the players no
+  longer see); 'disposition math' (THE ARITHMETIC OF REGARD: base/
+  earned/letter, rep, embrace, marks, the wire & the choice, renown →
+  the final tier).
+- ✅ **THE TRIGGERS, gathered** (EVENTS): ambush nearest caravan (real
+  ambushCaravan pipeline), cut nearest route (2 days — scarcity,
+  stories, stages all feel it), heal all routes, force a judgment
+  (real assessStill with the pacing satisfied).
+- ✅ **A/B SNAPSHOTS**: capture the whole world-state into two bench
+  slots; restore writes it over the save and reloads into it. Found
+  and fixed a real race doing it: the beforeunload/pagehide autosave
+  fired during the restore reload and clobbered the snapshot with live
+  state — both hooks now respect the restore flag.
+- Verified: round104 (32 checks — watch pins/lives/survives/remembers/
+  shows company; all three inspectors; all four triggers; capture →
+  mutate → restore → the mutation never happened), boot clean,
+  regression 61 fps. (The /tmp date-rollover ate the test harness
+  mid-round; regress.mjs rebuilt.)
+
+**ARC XII — THE WORKBENCH: COMPLETE.** The Consolidation, the Foundry,
+the Instruments. Twelve tabs became seven with nothing lost, the bench
+makes souls now (For Brann — answered), and iteration got teeth: find
+any button by typing, watch the world live, inspect any ledger, trigger
+any event, and snapshot/restore whole worlds for repeatable tests. The
+standing rule holds: arcs extend tabs; they do not multiply them.
 
 ## build 2026.7.88 — "The Workbench" (ARC XII, build 2) — ✅ SHIPPED
 

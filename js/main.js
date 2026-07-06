@@ -302,7 +302,12 @@ class Game {
           epithet: this.epithet,
         };
       },
-      settlersOf: (key) => this.settlers[key] || null,
+      // a settler who WALKS with you keeps their home but not their body:
+      // without this filter, the override stamped their name onto whatever
+      // soul held the slot next — two Lorns, one of them an impostor
+      settlersOf: (key) => (this.settlers[key] || []).filter(rec =>
+        !this.followers.list().some(f => f.name === rec.name)
+        && !(this.followerWalk && (this.followerWalk.walkers || []).some(w => w.name === rec.name))),
       onSettlerLoaded: (n, rec) => {
         this.npcDisp[n.id] = Math.max(this.npcDisp[n.id] || 0, rec.disp || 20);
       },
@@ -608,8 +613,10 @@ class Game {
     for (let i = 0; i < 80; i++) this.world.update(this.player.pos.x, this.player.pos.z, 0.016);
     this.player.pos.y = this.world.getHeight(this.player.pos.x, this.player.pos.z) + 1;
 
-    addEventListener('beforeunload', () => { if (!this.dead) saveGame(this); });
-    addEventListener('pagehide', () => { if (!this.dead) saveGame(this); });
+    // _benchRestoring: the workbench's snapshot restore writes a past state
+    // over the save and reloads — the unload save must not clobber it
+    addEventListener('beforeunload', () => { if (!this.dead && !window._benchRestoring) saveGame(this); });
+    addEventListener('pagehide', () => { if (!this.dead && !window._benchRestoring) saveGame(this); });
 
     this.clock = new THREE.Clock();
     this.loop = this.loop.bind(this);
@@ -1991,6 +1998,7 @@ class Game {
       && this.stills.stillsNear(this.player.pos.x, this.player.pos.z, 90).length
       && !this.enemies.enemies.some(e => e.state === 'chase')) {
       this.stashKit(f);
+      this.recruitedIds = this.recruitedIds.filter(x => x !== f.id); // they go HOME, not into the void
       this.followers.dismiss(f);
       this.reloadHomeOf(f.id);
       this.ui.toast(`${f.name.toUpperCase()} GOES TO SEE TO IT ALONE — the want would not wait any longer`, 'rust');

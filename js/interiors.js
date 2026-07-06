@@ -476,6 +476,8 @@ export class InteriorSystem {
         new THREE.MeshLambertMaterial({ color: 0x6b5a3a, emissive: 0x241a08 }));
       // in a chasm hall the scrap fell where everything falls: the pit floor
       m.position.set(px, baseY + room.floorY + (room.chasm ? -6.5 : 0) + 0.6, pz);
+      // what was taken stays taken: the looted ledger gates the mesh too
+      m.visible = !this.world.looted.has(`int:${mega.key}:${i}`);
       group.add(m);
       piles.push({ id: `int:${mega.key}:${i}`, x: px, z: pz, mesh: m, room: room.kind, depth: room.floor });
     }
@@ -486,6 +488,7 @@ export class InteriorSystem {
       const m = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 1.1),
         new THREE.MeshLambertMaterial({ color: 0x2a5548, emissive: 0x123328 }));
       m.position.set(deepRoom.cx + 3, baseY + deepRoom.floorY + 0.65, deepRoom.cz - 3);
+      m.visible = !this.world.looted.has(`int:${mega.key}:deep`);
       group.add(m);
       cache = { id: `int:${mega.key}:deep`, x: deepRoom.cx + 3, z: deepRoom.cz - 3, mesh: m, room: deepRoom.kind, depth: deepRoom.floor };
     }
@@ -497,6 +500,7 @@ export class InteriorSystem {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.2),
         new THREE.MeshBasicMaterial({ color: 0x1f5548 }));
       m.position.set(room.cx - 3.5, baseY + room.floorY + 0.85, room.cz + 3.5);
+      m.visible = !this.world.looted.has(`int:${mega.key}:doc${i}`);
       group.add(m);
       docs.push({ id: `int:${mega.key}:doc${i}`, x: room.cx - 3.5, z: room.cz + 3.5, mesh: m, roomKind: room.kind, salt: hashString(mega.key) + i * 131 });
     }
